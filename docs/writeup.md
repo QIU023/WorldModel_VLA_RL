@@ -21,3 +21,13 @@
 ## 4. RL → 蒸馏
 - 把 RL 探索出的收益蒸回更稳/更小 policy 保留/丢失了什么。
 - forward-KL（覆盖全 support）vs reverse-KL（mode-seeking）在 policy 蒸馏里的取舍。
+
+## 5. 框架现状与 infra 落点（2026-06-01 核查）
+- **SimpleVLA-RL 的 VLA rollout 不走推理引擎**：`rob_rollout.py` 用 HF transformers + FSDP 裸前向跑 OpenVLA-OFT、与 LIBERO 交互；仓库里的 vLLM 是 veRL 给通用 LLM 文本生成用的 vendored 老版（0.3.1/0.4.2），VLA 路没调；全树无 sglang。
+- **infra-PR 机会**：rollout 前向未优化 → 把 sglang 接成 OpenVLA-OFT 优化后端（接 AttnRes sglang overlay 经验）。前提：OpenVLA-**OFT** 是 parallel decoding（一次前向），引擎收益有限；原版自回归 OpenVLA 才是 sglang 显著加速场景。Week2 profile rollout 瓶颈后再定。
+- veRL mainline 支持 `rollout.name=sglang`，但 SimpleVLA-RL 是老 fork 没带。
+
+## 6. latent vs 生成式世界模型（项目定位轴）
+- 两条对立路线：**V-JEPA2-AC = 隐空间预测**（轻、CEM ~16s/action、能量=latent 距离）；**τ0-WM = 生成式视频扩散**（Wan2.2-5B，显式想象未来帧给动作打分）。
+- 本项目选隐空间做 RL reward 的理由（面试弹药）：成本、采样吞吐、reward-hacking 面更小。
+- τ0-WM 的"想象→评估(打分)→执行"是 world-model-as-critic，与本项目 M2 latent-WM reward 同家族——借其思路、用 V-JEPA 隐空间廉价实现。
