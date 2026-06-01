@@ -1,0 +1,20 @@
+# cloned upstream repos (装到这里, 不进版本控制)
+_ext/
+# 大文件 / 产物
+*.pt
+*.pth
+*.safetensors
+*.ckpt
+*.mp4
+*.npy
+*.npz
+checkpoint/
+checkpoints/
+wandb/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+# 但保留 results 里的图和小 json
+!module*/results/*.png
+!module*/results/*.json
+!infra_notes/*.md
