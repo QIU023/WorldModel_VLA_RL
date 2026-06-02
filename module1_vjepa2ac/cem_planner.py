@@ -1,18 +1,40 @@
-"""CEM / MPC planner over actions in V-JEPA 2 latent space.
+"""CEM / MPC planner over actions in V-JEPA 2 latent space.  (E0.2)
 
-仓库没有打包的 planner —— 从零写。参考 notebooks/energy_landscape_example.ipynb 的能量计算。
+复用 vjepa2 notebooks/utils/mpc_utils.cem（完整 CEM：samples/topk/cem_steps/momentum）+
+我们的 rollout.step_predictor。能量函数 latent_goal_energy = l1(z, goal)（latent 空间 L1 距离）
+—— 同时是 E2.2 的 RL dense reward（一鱼两吃）。
 
-算法:
-  1. 从高斯采样 N 条动作序列
-  2. 每条经 rollout() 在 latent 空间展开
-  3. 用 latent L1/L2 到目标 embedding 的能量打分
-  4. 取 top-k elites 重拟合高斯 (mean/var)
-  5. 迭代 M 次, 返回最优首动作 (MPC: 执行首动作后重规划)
-
-interface (待实现):
-    action = plan(predictor, z_cur, z_goal, horizon, n_samples, n_iters, n_elites)
-
-验证: 在 Droid/goal 例子上确认 latent 能量随 CEM 迭代下降 (画能量曲线 → results/)。
-这个能量函数 Week3 会被 reward_latent_wm.py 复用为 RL reward。
+P1：world_model step 走 KDA recurrent 路径时，CEM 在 planning root fork SSM 状态、
+N 个候选共享历史（PR#15 fork/restore 思路）→ rollout 摆脱 O(N³)。
 """
-# TODO(week1): 实现 CEM; energy(z_pred, z_goal); MPC 闭环; 存 planning demo + 能量曲线
+import os, sys
+
+_VJEPA = "/home/wm-vla-rl/_ext/vjepa2"
+_HERE = os.path.dirname(os.path.abspath(__file__))
+for p in (_HERE, _VJEPA, _VJEPA + "/notebooks"):
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
+from utils.mpc_utils import cem, compute_new_pose, l1   # noqa: E402
+from rollout import step_predictor as _step             # noqa: E402
+
+
+def latent_goal_energy(z, goal):
+    """latent 空间 L1 距离（越小越接近目标）。E0.2 能量 / E2.2 dense reward 共用。"""
+    return l1(z.flatten(1), goal.flatten(1))
+
+
+def make_world_model_step(predictor, tokens_per_frame, normalize_reps=True):
+    """构造 cem() 需要的 world_model step：f(frame_traj, action_traj, pose_traj)->(next_frame,next_pose)."""
+    def step(frame_traj, action_traj, pose_traj):
+        nxt = _step(predictor, frame_traj, action_traj, pose_traj, tokens_per_frame, normalize_reps)
+        next_pose = compute_new_pose(pose_traj[:, -1:], action_traj[:, -1:])
+        return nxt, next_pose
+    return step
+
+
+def plan(predictor, context_rep, context_pose, goal_rep, tokens_per_frame, **mpc_args):
+    """CEM 规划：返回动作轨迹 [1, rollout, 7]；[0,0] 即下一步最优动作。"""
+    wm_step = make_world_model_step(predictor, tokens_per_frame)
+    return cem(context_frame=context_rep, context_pose=context_pose,
+               goal_frame=goal_rep, world_model=wm_step, **mpc_args)
