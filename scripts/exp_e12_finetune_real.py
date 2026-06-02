@@ -76,7 +76,7 @@ def main():
 
     data = torch.load("/home/wm-vla-rl/_ext/datasets/libero_latents.pt")
     random.seed(0); random.shuffle(data)
-    train, held = data[:32], data[32:]
+    nh = max(8, int(len(data) * 0.2)); train, held = data[:-nh], data[-nh:]   # 80/20 split
     sdpa_mse = eval_mse(sdpa, held, dev, TW)
     print(f"[parity baseline] SDPA-pretrained held-out next-latent MSE = {sdpa_mse:.5f}", flush=True)
 

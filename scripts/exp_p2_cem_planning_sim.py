@@ -66,6 +66,26 @@ def main():
 
     obs = env.reset()
     print("obs keys:", [k for k in obs if "eef" in k or "gripper" in k or "image" in k][:8], flush=True)
+
+    # A：任务相关 token mask（goal vs 初始帧差异最大的 top-K token）→ masked goal-energy
+    A_MASK = int(os.environ.get("A_MASK", "0"))
+    TOPK = int(os.environ.get("MASK_TOPK", "48"))
+    dim = goal_z.shape[-1]
+    z0 = encode(np.asarray(obs["agentview_image"]))
+    diff_tok = (goal_z - z0).abs().mean(-1)[0, 0]                  # [tok] 每 token 的 goal-vs-start 差异
+    mask = torch.zeros_like(diff_tok, dtype=torch.bool)
+    mask[diff_tok.topk(TOPK).indices] = True
+
+    def masked_energy(z_, g_):                                    # [1,tok,dim] L1 over masked tokens
+        return (z_ - g_).abs()[:, mask, :].mean(dim=[1, 2])
+
+    if A_MASK:
+        def masked_obj(a, b):                                    # cem objective: [S,tok*dim]->[S]
+            a = a.view(a.shape[0], tok, dim); b = b.view(b.shape[0], tok, dim)
+            return (a - b).abs()[:, mask, :].mean(dim=[1, 2])
+        MPC["objective"] = masked_obj
+        print(f"A: masked energy over top{TOPK}/{tok} task-relevant tokens", flush=True)
+
     success = False
     for t in range(MAX_STEPS):
         img = obs["agentview_image"]
@@ -82,8 +102,9 @@ def main():
         if env.check_success():
             success = True
         e = C.latent_goal_energy(z[:, 0], goal_z[:, 0]).item()
+        em = masked_energy(z[:, 0], goal_z[:, 0]).item()
         if t % 10 == 0 or success:
-            print(f"  t={t:3d} energy={e:.4f} success={success} act_xyz={np.round(a[:3],3)}", flush=True)
+            print(f"  t={t:3d} energy={e:.4f} masked={em:.4f} success={success} act_xyz={np.round(a[:3],3)}", flush=True)
         if success or done:
             break
     env.close()
