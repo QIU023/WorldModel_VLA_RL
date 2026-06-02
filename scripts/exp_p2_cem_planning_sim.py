@@ -30,8 +30,9 @@ MPC = dict(rollout=2, samples=int(os.environ.get("P2_SAMPLES", "400")), topk=10,
 
 def main():
     enc, pred = vjepa2_ac_vit_giant(pretrained=True)
-    kda_ify_predictor(pred)
-    pred.load_state_dict(torch.load("/home/wm-vla-rl/_ext/ckpts/kda_predictor_libero.pt", map_location="cpu"))
+    kda_ify_predictor(pred, use_attnres=bool(int(os.environ.get("WM_ATTNRES", "0"))))
+    _ck = os.environ.get("WM_CKPT", "kda_predictor_libero.pt")
+    pred.load_state_dict(torch.load(f"/home/wm-vla-rl/_ext/ckpts/{_ck}", map_location="cpu"))
     enc = enc.to(DEV).eval(); pred = pred.to(DEV).eval()
     pred.attn_mask = torch.zeros(1, 1, dtype=torch.bool, device=DEV)
     tok = pred.grid_height * pred.grid_width
@@ -86,6 +87,20 @@ def main():
         MPC["objective"] = masked_obj
         print(f"A: masked energy over top{TOPK}/{tok} task-relevant tokens", flush=True)
 
+    # (B) learned latent-WM reward：progress head 替手工 L1（CEM 最大化 progress）
+    phead = None
+    if os.environ.get("REWARD", "") == "progress":
+        sys.path.insert(0, "/home/wm-vla-rl/scripts")
+        from exp_p2b_train_progress_head import ProgressHead
+        phead = ProgressHead(dim).to(DEV).eval()
+        phead.load_state_dict(torch.load("/home/wm-vla-rl/_ext/ckpts/progress_head.pt", map_location="cpu"))
+
+        def progress_obj(a, b):                                   # a:[S,tok*dim] → 1-progress（cem 取最小=最大化进度）
+            with torch.no_grad():
+                return 1.0 - phead(a.view(a.shape[0], tok, dim)).squeeze(-1)
+        MPC["objective"] = progress_obj
+        print("REWARD=progress (learned head, replaces L1)", flush=True)
+
     success = False
     for t in range(MAX_STEPS):
         img = obs["agentview_image"]
@@ -102,9 +117,9 @@ def main():
         if env.check_success():
             success = True
         e = C.latent_goal_energy(z[:, 0], goal_z[:, 0]).item()
-        em = masked_energy(z[:, 0], goal_z[:, 0]).item()
+        prog = phead(z[:, 0]).item() if phead is not None else float("nan")
         if t % 10 == 0 or success:
-            print(f"  t={t:3d} energy={e:.4f} masked={em:.4f} success={success} act_xyz={np.round(a[:3],3)}", flush=True)
+            print(f"  t={t:3d} energy={e:.4f} progress={prog:.3f} success={success} act_xyz={np.round(a[:3],3)}", flush=True)
         if success or done:
             break
     env.close()
