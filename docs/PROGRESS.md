@@ -19,7 +19,24 @@
 2. **SimpleVLA-RL 引擎真相**：VLA rollout（`verl/workers/rollout/rob_rollout.py`）是 **HF transformers + FSDP 裸前向**跑 OpenVLA-OFT，**不经 vLLM/sglang**。仓库里的 vLLM 全在 `verl/third_party/vllm/`（veRL 给通用 LLM 用的老版 0.3.1/0.4.2），VLA 路没调；全树**无 sglang**。→ 不被 vLLM 锁死；接 sglang 优化 rollout 是 infra-PR 机会。
 3. **τ0-WM 定位**：生成式视频扩散世界模型（Wan2.2-5B），与 V-JEPA 隐空间路线对立。**只作叙事对照（latent vs 生成式）+ reward-as-critic 设计参照**；不复现、不当 live reward 引擎（5B 扩散采样算力上不可行，且违背"廉价 dense latent reward"主线）。
 
-### 下一步（暂停中——机器交还其他项目）
-- Phase A（GPU1）：`rollout.py`（block-causal latent rollout + KV-cache 副产品）→ `cem_planner.py`（CEM，能量曲线图）。
-- Phase B（CPU/网络）：LIBERO 装环境（robosuite+MuJoCo，headless EGL）+ smoke；`vla-rl` env（老 veRL，timebox）。
-- Phase C（GPU1，依赖 B）：`probe.py`（V-JEPA2 vs SigLIP-224 状态回归，GO/NO-GO 闸门）。
+## 2026-06-02（P0 完成 + P1 centerpiece 完成 overnight）
+
+### P0（foundation，合成验证）
+- E0.1 `rollout.py` / E0.2 `cem_planner.py`：合成验证通过（CEM 找回 a*，能量↓5×）。
+- E0.3 SDPA scaling：O(N²) 墙量化（T=512 75s/96GB，T=768 OOM）。
+- E0.4 probe：待 LIBERO sim（deferred）。
+
+### P1 — KDA-AttnRes predictor（CENTERPIECE，py3.10 fla 环境）
+- 环境：复用 conda `py3.10`（torch2.11+fla0.5.0），`--no-deps` 补 timm/scipy/h5py/opencv。
+- E1.1 `kda_acblock.py` `DividedKDAACBlock`（帧内 attn ⊕ 时间轴 KDA）：drop-in，shape==SDPA，+107M。
+- E1.4 **headline**：KDA O(N) vs SDPA O(N²)。**T=512 KDA 2.9s/10GB vs SDPA 75s/96GB（26×快/9.6×省显存）；SDPA T=768 OOM，KDA 到 1024**。图 `results/e14_kda_vs_sdpa_scaling.png`。
+- E1.5 recurrent rollout（`forward_step` + `fused_recurrent_kda`）：**O(1)/步**（77ms 平、3.4GB 平 @horizon512）。full-vs-recurrent ~2e-3/block（bf16 seqlen 级，部署用递归路径自洽）。
+- **E1.2/E1.3 真数据微调 + parity（LIBERO libero_spatial，40 demos 编码成 latent 序列）**：
+  - SDPA zero-shot（域外）0.820 → **SDPA fine-tuned（305M）0.102** / **KDA fine-tuned（107M adapter，冻 backbone）0.127**。
+  - **KDA 在 SDPA 的 1.24× 以内、仅 1/3 训练参数 + O(N) 效率** = 近 parity + 大效率（divided 线性付 ~24% 质量换效率，符合预期）。
+- 定位（SOTA 核查后）：主卖点=效率；能力探针=context 长度 ablation。生成派旗舰（Cosmos 3 16-64B / τ0-WM 5B）作 foil 强化效率论点，不当 live 组件。
+
+### 下一步
+- P1 收尾：context 长度 4→32→128 ablation（能力探针）；可选 KDA 容量/步数扫提升 parity。
+- P2（WM-native 重构）：CEM/MPC 规划成功率 + latent-WM-reward RL（砍 OpenVLA-GRPO-leaderboard）。
+- 脚本：`scripts/exp_e1*`、`kda_acblock.py`、`prep_libero_latents.py`、`exp_e12_finetune_real.py`。
