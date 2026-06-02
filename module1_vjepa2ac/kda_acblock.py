@@ -74,11 +74,14 @@ class CrossFrameAttnRes(nn.Module):
         nn.init.zeros_(self.o_proj.weight)               # 起步为 no-op，稳定接入
 
     def forward(self, x):                                 # [N, T, D]
-        N, T, D = x.shape
+        # causal softmax-weighted 帧聚合 == cumulative-softmax（O(N) streamable）。
+        # 与 O(T²) causal-mask 形数学等价（已训 ckpt 直接适用）。
         logit = self.proj(self.norm(x)).squeeze(-1)       # [N, T] 每帧标量 gate
-        mask = torch.tril(torch.ones(T, T, device=x.device, dtype=torch.bool))
-        w = logit.unsqueeze(1).expand(N, T, T).masked_fill(~mask, float("-inf")).softmax(-1)
-        agg = torch.einsum("nts,nsd->ntd", w, x.float()).to(x.dtype)   # causal 帧聚合
+        logit = logit - logit.max(dim=1, keepdim=True).values   # per-pos 常数移位（稳定；常数在 softmax 中抵消，不破因果）
+        e = logit.exp().unsqueeze(-1)                     # [N, T, 1] ≤1
+        num = torch.cumsum(e * x.float(), dim=1)          # [N, T, D]  O(N)
+        den = torch.cumsum(e, dim=1).clamp_min(1e-6)      # [N, T, 1]
+        agg = (num / den).to(x.dtype)
         return self.o_proj(agg)
 
 

@@ -2,7 +2,7 @@
 trick：KDA block 忽略 attn_mask，故把 pred.attn_mask 设 1×1 dummy，避免预测器构建 T×258 的
 O(N²) mask（那本身就会 OOM）。于是能跑到 SDPA OOM 的 T=512/768/1024。
 """
-import sys, time, json, torch
+import os, sys, time, json, torch
 REPO = "/home/wm-vla-rl/_ext/vjepa2"; HERE = "/home/wm-vla-rl/module1_vjepa2ac"
 sys.path.insert(0, REPO); sys.path.insert(0, HERE)
 from kda_acblock import kda_ify_predictor
@@ -12,7 +12,8 @@ def main():
     dev = "cuda"
     from hubconf import vjepa2_ac_vit_giant
     enc, pred = vjepa2_ac_vit_giant(pretrained=True); del enc; torch.cuda.empty_cache()
-    kda_ify_predictor(pred); pred = pred.to(dev).eval()
+    use_ar = bool(int(os.environ.get("USE_ATTNRES", "0")))
+    kda_ify_predictor(pred, use_attnres=use_ar); pred = pred.to(dev).eval()
     D = pred.predictor_embed.in_features
     H, W = pred.grid_height, pred.grid_width
     addt = 3 if pred.use_extrinsics else 2
@@ -35,7 +36,7 @@ def main():
         except RuntimeError as e:
             print(f"T={T} OOM/err: {str(e)[:120]}", flush=True)
             results.append(dict(T=T, oom=True)); break
-    out = "/home/wm-vla-rl/module1_vjepa2ac/results/e14_kda_scaling.json"
+    out = f"/home/wm-vla-rl/module1_vjepa2ac/results/e14_kda{'_attnres' if use_ar else ''}_scaling.json"
     json.dump(results, open(out, "w"), indent=2)
     print("WROTE", out); print("E14_OK", flush=True)
 
