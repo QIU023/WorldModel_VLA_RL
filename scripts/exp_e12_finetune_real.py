@@ -56,16 +56,18 @@ def main():
         p.requires_grad_(False)
 
     MODE = os.environ.get("FT_MODE", "kda")
+    FREEZE = int(os.environ.get("FT_FREEZE", "1"))   # 1=冻 backbone(adapter); 0=全参微调
+    TAG = os.environ.get("FT_TAG", "")               # ckpt/json 后缀，避免覆盖
     if MODE == "kda":
         kda_ify_predictor(pred); student = pred.to(dev)
         student.attn_mask = torch.zeros(1, 1, dtype=torch.bool, device=dev)
-        # 冻结 backbone（复用的 norm1/attn/norm2/mlp），只训 temporal-KDA + norm_t
-        for blk in student.predictor_blocks:
-            for m in (blk.norm1, blk.attn, blk.norm2, blk.mlp):
-                for p in m.parameters():
-                    p.requires_grad_(False)
-        for p in student.predictor_embed.parameters(): p.requires_grad_(False)
-        for p in student.predictor_proj.parameters(): p.requires_grad_(False)
+        if FREEZE:   # 冻结 backbone，只训 temporal-KDA + norm_t（adapter）
+            for blk in student.predictor_blocks:
+                for m in (blk.norm1, blk.attn, blk.norm2, blk.mlp):
+                    for p in m.parameters():
+                        p.requires_grad_(False)
+            for p in student.predictor_embed.parameters(): p.requires_grad_(False)
+            for p in student.predictor_proj.parameters(): p.requires_grad_(False)
     else:  # sdpa：公平 parity 参考——同样在 LIBERO 上微调（全参数）
         student = pred.to(dev)
         student.attn_mask = build_action_block_causal_attention_mask(TW, H, W, 2).to(dev)
@@ -97,9 +99,10 @@ def main():
 
     student.eval()
     ft_mse = eval_mse(student, held, dev, TW)
-    torch.save(student.state_dict(), f"/home/wm-vla-rl/_ext/ckpts/{MODE}_predictor_libero.pt")
-    json.dump({"mode": MODE, "train_losses": losses, "sdpa_zeroshot_mse": sdpa_mse, "finetuned_mse": ft_mse},
-              open(f"{RES}/e12_{MODE}_finetune.json", "w"))
+    torch.save(student.state_dict(), f"/home/wm-vla-rl/_ext/ckpts/{MODE}{TAG}_predictor_libero.pt")
+    json.dump({"mode": MODE, "tag": TAG, "freeze": FREEZE, "n_train": len(train),
+               "train_losses": losses, "sdpa_zeroshot_mse": sdpa_mse, "finetuned_mse": ft_mse},
+              open(f"{RES}/e12_{MODE}{TAG}_finetune.json", "w"))
     print(f"[{MODE}] finetuned held-out MSE={ft_mse:.5f} (SDPA-zeroshot baseline={sdpa_mse:.5f})", flush=True)
     print("FINETUNE_REAL_OK", flush=True)
 
