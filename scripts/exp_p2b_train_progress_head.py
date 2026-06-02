@@ -58,4 +58,5 @@ def main():
           f"(1.0=完全单调递增)", flush=True)
 
 
-main()
+if __name__ == "__main__":
+    main()
