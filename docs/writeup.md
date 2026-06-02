@@ -49,3 +49,13 @@
 - **跨帧 Block-AttnRes（novel）把差距砍半（4.3%→2.4%）且保持 O(N)** —— 验证了"AttnRes 作为 WM 时间聚合原语"这个新结构**确实有效且补能力**。
 - 这是 P1 的核心 ablation：纯 KDA / KDA⊕AttnRes / SDPA 三方，讲清线性化的代价、novel 结构的增益、与 softmax 上限的距离。图 `results/e12_parity_3way.png`。
 - gap 仅 2.4% → 大概率无需再加 full-SDPA 层（hybrid ②）；若要彻底闭合是后续可选项。
+
+### 8b. novel 结构的长时程增益（最强证据）
+AttnRes 是 O(N)（cumsum 形，scaling 实测 T→1024、~10% over KDA）。更关键——**开环 rollout 保真度（LIBERO held-out n=40），跨帧 AttnRes 的优势随 horizon 增大**：
+| horizon | KDA-full | KDA⊕AttnRes | 改善 |
+|---|---|---|---|
+| h1 | 0.059 | 0.060 | ~平 |
+| h4 | 0.132 | 0.125 | -5% |
+| h8 | 0.237 | 0.213 | -10% |
+| **h16** | **0.467** | **0.370** | **-21%** |
+→ 短程持平、**长程明显更好**（h16 漂移 -21%）。这正是 cross-frame 聚合该赢的地方（比纯递归更能压长程开环漂移），且仍 O(N)。**比 next-latent@T=64 的 2.4% 更有说服力的 novel-结构卖点**。图 `results/e1z_rollout_compare.png`。
