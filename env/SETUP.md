@@ -22,11 +22,17 @@ git clone https://github.com/moojink/openvla-oft  /home/wm-vla-rl/_ext/openvla-o
 # ⚠️ SimpleVLA-RL 默认 8-GPU colocated → 降配见 module2_vla_rl/simplevla_2gpu/
 ```
 
-## env `libero` — 仿真（Module 2-3）
+## env `libero` — 仿真（Module 2-3）✅ 已跑通（2026-06-02，headless EGL）
+独立 venv `/home/venv/libero`（robosuite 1.4.0 + mujoco 3.9.0 + bddl + robomimic + gym 0.25，老 pin 隔离）。
+踩过的 3 个坑 + 解法（见 scripts/install_libero_*.log）：
+1. `egl_probe` 编译需 CMake → `apt-get update && apt-get install -y cmake libegl1-mesa-dev libgl1-mesa-dev`。
+2. `-e` editable 没注册到 venv → 运行时加 `PYTHONPATH=/home/wm-vla-rl/_ext/LIBERO`。
+3. 首次 import `input()` 问 dataset 路径会卡 stdin → 预写 `~/.libero/config.yaml`（见 scripts/libero_smoke.py）。
 ```bash
-git clone https://github.com/Lifelong-Robot-Learning/LIBERO /home/wm-vla-rl/_ext/LIBERO
-# pip install -e LIBERO；robosuite + mujoco
-# ⚠️ headless 服务器需 EGL: export MUJOCO_GL=egl (早装早排，OFT 与 LIBERO 的 robosuite 版本要对齐)
+# 可复现运行约定：
+PYTHONPATH=/home/wm-vla-rl/_ext/LIBERO MUJOCO_GL=egl /home/venv/libero/bin/python scripts/libero_env_smoke.py
+# 验证：建 OffScreenRenderEnv + reset + step → agentview_image (128,128,3) ✅
+# benchmarks: libero_spatial/object/goal/90/10/100；bddl_files + init_files 内置；demo hdf5 在 _ext/datasets/LIBERO/
 ```
 
 ## (备选, Module-3 stretch) LAPA
