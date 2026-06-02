@@ -58,21 +58,49 @@ class KDATemporal(nn.Module):
         return self.o_proj(o), final
 
 
-class DividedKDAACBlock(nn.Module):
-    """复用预训练 ACBlock 的 norm1/attn/norm2/mlp/drop_path；插入 norm_t + KDATemporal。
-    forward 签名与 ACBlock 一致（predictor 不感知差异）。"""
+class CrossFrameAttnRes(nn.Module):
+    """跨帧 Block-AttnRes（Kimi AttnRes §5 的 units=帧 版本，arxiv 2603.15031）。
+    对每个空间位置的帧序列，用学习式 pseudo-query w_l 做 **causal online-softmax 聚合**
+    （= cumulative-softmax，O(N) streamable）。输入 [N,T,D]（N=B*P）→ [N,T,D]。
+    novel 点：把 AttnRes 当世界模型的"时间聚合原语"，与 KDA 递归互补。
+    """
 
-    def __init__(self, dim, num_heads, norm1, attn, norm2, mlp, drop_path, norm_layer=nn.LayerNorm):
+    def __init__(self, dim, norm_eps=1e-5):
+        super().__init__()
+        self.norm = nn.RMSNorm(dim, eps=norm_eps)
+        self.proj = nn.Linear(dim, 1, bias=False)        # pseudo-query w_l；zero-init→初始均匀
+        self.o_proj = nn.Linear(dim, dim, bias=False)
+        nn.init.zeros_(self.proj.weight)
+        nn.init.zeros_(self.o_proj.weight)               # 起步为 no-op，稳定接入
+
+    def forward(self, x):                                 # [N, T, D]
+        N, T, D = x.shape
+        logit = self.proj(self.norm(x)).squeeze(-1)       # [N, T] 每帧标量 gate
+        mask = torch.tril(torch.ones(T, T, device=x.device, dtype=torch.bool))
+        w = logit.unsqueeze(1).expand(N, T, T).masked_fill(~mask, float("-inf")).softmax(-1)
+        agg = torch.einsum("nts,nsd->ntd", w, x.float()).to(x.dtype)   # causal 帧聚合
+        return self.o_proj(agg)
+
+
+class DividedKDAACBlock(nn.Module):
+    """复用预训练 ACBlock 的 norm1/attn/norm2/mlp/drop_path；插入 norm_t + KDATemporal
+    （可选 ⊕ 跨帧 CrossFrameAttnRes）。forward 签名与 ACBlock 一致（predictor 不感知差异）。"""
+
+    def __init__(self, dim, num_heads, norm1, attn, norm2, mlp, drop_path, norm_layer=nn.LayerNorm, use_attnres=False):
         super().__init__()
         self.norm1, self.attn, self.norm2, self.mlp, self.drop_path = norm1, attn, norm2, mlp, drop_path
         self.norm_t = norm_layer(dim)
         self.kda = KDATemporal(dim, num_heads)
+        self.use_attnres = use_attnres
+        if use_attnres:
+            self.norm_ar = norm_layer(dim)
+            self.attnres = CrossFrameAttnRes(dim)
 
     @classmethod
-    def from_acblock(cls, blk):
+    def from_acblock(cls, blk, use_attnres=False):
         dim = blk.norm1.normalized_shape[0]
         nh = blk.attn.num_heads
-        return cls(dim, nh, blk.norm1, blk.attn, blk.norm2, blk.mlp, blk.drop_path)
+        return cls(dim, nh, blk.norm1, blk.attn, blk.norm2, blk.mlp, blk.drop_path, use_attnres=use_attnres)
 
     def forward(self, x, mask=None, attn_mask=None, T=None, H=None, W=None, action_tokens=0):
         B, N, D = x.shape
@@ -86,6 +114,11 @@ class DividedKDAACBlock(nn.Module):
         o, _ = self.kda(y)
         o = o.reshape(B, P, T, D).permute(0, 2, 1, 3).reshape(B, N, D)
         x = x + self.drop_path(o)
+        # ②b 时间：跨帧 Block-AttnRes（units=帧，learned causal-softmax 聚合）⊕ KDA
+        if self.use_attnres:
+            y2 = self.norm_ar(x).view(B, T, P, D).permute(0, 2, 1, 3).reshape(B * P, T, D)
+            o2 = self.attnres(y2).reshape(B, P, T, D).permute(0, 2, 1, 3).reshape(B, N, D)
+            x = x + self.drop_path(o2)
         # ③ MLP
         x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x
@@ -104,8 +137,9 @@ class DividedKDAACBlock(nn.Module):
         return x, new_state
 
 
-def kda_ify_predictor(pred):
-    """把 predictor 的每个 ACBlock 原地换成 DividedKDAACBlock（复用预训练权重 + fresh KDA）。"""
+def kda_ify_predictor(pred, use_attnres=False):
+    """把 predictor 的每个 ACBlock 原地换成 DividedKDAACBlock（复用预训练权重 + fresh KDA
+    [+可选跨帧 Block-AttnRes]）。"""
     for i in range(len(pred.predictor_blocks)):
-        pred.predictor_blocks[i] = DividedKDAACBlock.from_acblock(pred.predictor_blocks[i])
+        pred.predictor_blocks[i] = DividedKDAACBlock.from_acblock(pred.predictor_blocks[i], use_attnres=use_attnres)
     return pred

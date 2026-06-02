@@ -59,7 +59,7 @@ def main():
     FREEZE = int(os.environ.get("FT_FREEZE", "1"))   # 1=冻 backbone(adapter); 0=全参微调
     TAG = os.environ.get("FT_TAG", "")               # ckpt/json 后缀，避免覆盖
     if MODE == "kda":
-        kda_ify_predictor(pred); student = pred.to(dev)
+        kda_ify_predictor(pred, use_attnres=bool(int(os.environ.get("USE_ATTNRES", "0")))); student = pred.to(dev)
         student.attn_mask = torch.zeros(1, 1, dtype=torch.bool, device=dev)
         if FREEZE:   # 冻结 backbone，只训 temporal-KDA + norm_t（adapter）
             for blk in student.predictor_blocks:
