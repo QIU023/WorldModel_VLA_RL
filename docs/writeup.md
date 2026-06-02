@@ -59,3 +59,9 @@ AttnRes 是 O(N)（cumsum 形，scaling 实测 T→1024、~10% over KDA）。更
 | h8 | 0.237 | 0.213 | -10% |
 | **h16** | **0.467** | **0.370** | **-21%** |
 → 短程持平、**长程明显更好**（h16 漂移 -21%）。这正是 cross-frame 聚合该赢的地方（比纯递归更能压长程开环漂移），且仍 O(N)。**比 next-latent@T=64 的 2.4% 更有说服力的 novel-结构卖点**。图 `results/e1z_rollout_compare.png`。
+
+## 9. (B) learned latent-WM reward — 诊断确认 + 下一层（2026-06-02）
+progress head（mean-pool latent→MLP→t/T；held progress-MSE 0.0047、monotonicity 0.60）替手工 L1 当 CEM reward：
+- progress 前 20 步真涨 2×（0.073→0.141）—— **CEM 确实在跟 learned 信号优化**，对比 L1 的持平 ⇒ **坐实"手工 L1 太弱"的诊断**。
+- 但 t20 后回落、未 success。下一层问题：head 仅 60% 单调（噪声）；model-based reward-hacking（CEM 钻 WM 想象的空子）；head goal-agnostic。
+- 下一步：goal-conditioned + 更单调 head / 抗 hacking（ensemble、短 horizon 重规划）/ 换 CEM→GRPO 用 progress reward 训 policy。
