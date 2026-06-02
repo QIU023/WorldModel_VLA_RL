@@ -18,7 +18,7 @@ ax[1].plot(Tk, memk, "s-", color="C2", label="KDA divided")
 ax[1].set(xlabel="temporal length T (tubelets)", ylabel="peak GPU mem (GB)", title="Predictor peak memory vs horizon")
 for a in ax:
     a.grid(True, alpha=0.3); a.legend()
-fig.suptitle("E1.4 — KDA/AttnRes divided predictor: O(N) vs SDPA O(N²)  (SDPA OOMs at T=512; KDA continues)")
+fig.suptitle("E1.4 — KDA/AttnRes divided predictor O(N) vs SDPA O(N²): at T=512 26x faster / 10x less mem; SDPA OOMs at T=768, KDA runs to 1024")
 fig.tight_layout()
 out = f"{RES}/e14_kda_vs_sdpa_scaling.png"
 fig.savefig(out, dpi=130)
