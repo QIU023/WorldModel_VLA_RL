@@ -31,3 +31,9 @@
 - 两条对立路线：**V-JEPA2-AC = 隐空间预测**（轻、CEM ~16s/action、能量=latent 距离）；**τ0-WM = 生成式视频扩散**（Wan2.2-5B，显式想象未来帧给动作打分）。
 - 本项目选隐空间做 RL reward 的理由（面试弹药）：成本、采样吞吐、reward-hacking 面更小。
 - τ0-WM 的"想象→评估(打分)→执行"是 world-model-as-critic，与本项目 M2 latent-WM reward 同家族——借其思路、用 V-JEPA 隐空间廉价实现。
+
+## 7. P1 实测结论（2026-06-02 overnight）
+- **效率（主卖点，成立）**：KDA divided predictor O(N) vs SDPA O(N²)。T=512: 2.9s/10GB vs 75s/96GB（26×快/9.6×省显存）；SDPA T=768 OOM，KDA 跑到 1024。recurrent rollout O(1)/步。
+- **parity（近 parity）**：LIBERO 真数据微调，KDA-ft(107M adapter) next-latent MSE 0.127 在 SDPA-ft(305M) 0.102 的 **1.24×** 内（1/3 训练参数）。divided 线性付 ~24% 质量换大效率，符合预期。
+- **能力探针（诚实负结果）**：context 长度 16/32/64/96 → MSE 0.155/0.144/0.153/0.149 **基本持平**，长上下文在 LIBERO 上无清晰收益——**操作类任务近 Markov，长历史不太帮**。⇒ 不要硬卖"长历史必然更好"；效率赢面才是 P1 的硬通货。真正能展现长上下文价值要找**长程记忆依赖/部分可观测**的任务（future work）。
+- **定位**：生成派旗舰（Cosmos 3 16-64B / τ0-WM 5B）作 foil 强化"小而高效 latent WM"的效率论点；不当 live 组件。
