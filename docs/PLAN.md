@@ -64,5 +64,13 @@
 4. **数据**：长时程真数据需 LIBERO/Droid；E0.3/E1.4 scaling 先用合成输入解耦。
 5. **action/state token 交织**（`ac_predictor.py` 每帧 [a,s,patches]）必须在 recurrent 形式里保留。
 
+## P1 实现决策（2026-06-02 敲定）
+- **因子化 = ① Divided 时空**（帧内 full-attn + 时间轴 KDA 递归）。② 层间混合 SDPA+KDA 作 parity 不达标 fallback（但保留的 SDPA 层仍 O(N²)、拿不到干净长时程）；③ joint-flatten 弃用（破坏帧内双向）。① 单层丢"时空对角"交互、靠 24 层深度多跳间接补——经验问题，E1.3 gate 裁决。
+- **E1.2 = 预训练初始化 + 微调（非蒸馏）**：KDA 换进 predictor、从 pretrained 权重 init、encoder 冻结、在真序列(LIBERO/Droid clips)上 next-latent 微调。teacher-matching 仅作无数据时的训练环兜底。
+- **价值重定位（SOTA 核查后，诚实版）**：SOTA(DIAMOND/Vid2World/Genie ~4 帧条件、OpenVLA 1 帧)只留极短不压缩历史 → 不卖"解决 SOTA 撞的墙"。
+  - **主卖点(稳) = 效率**：recurrent state 让 rollout+MPC/CEM O(1)/步、显存平。E1.4 主线。
+  - **能力(研究赌注，数据裁决) = context 长度 4→32→128 ablation**：长历史到底帮不帮 WM 预测/RL 成功率。帮→能力故事；不帮→诚实负结果+效率仍在。
+  - 新颖性中等（Long-Context State-Space Video WM 已有人做）；定位为"把已验证 KDA/AttnRes infra 接到 V-JEPA2-AC + RL 规划"的差异化 infra。
+
 ## 执行顺序
-P0(E0.1→0.3 先；E0.4 待 LIBERO) → **P1 centerpiece** → P2 → P3。Infra 随 P1/P2 收割。两卡：长跑（蒸馏/GRPO）占一卡，scaling/eval 占另一卡。
+P0(E0.1→0.3 先；E0.4 待 LIBERO) → **P1 centerpiece** → P2 → P3。Infra 随 P1/P2 收割。两卡：长跑（微调/GRPO）占一卡，scaling/eval 占另一卡。
