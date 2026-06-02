@@ -35,6 +35,19 @@ PYTHONPATH=/home/wm-vla-rl/_ext/LIBERO MUJOCO_GL=egl /home/venv/libero/bin/pytho
 # benchmarks: libero_spatial/object/goal/90/10/100；bddl_files + init_files 内置；demo hdf5 在 _ext/datasets/LIBERO/
 ```
 
+### ⭐ env 统一（P2 单进程闭环，2026-06-02）
+libero venv（torch2.12）可同时跑 **sim + V-JEPA2 encoder + KDA WM**，避免 server/client：
+```bash
+# 1) 把 py3.10 能用的 fla 0.5.0 复制进 libero venv（torch2.12+triton3.7 实测 chunk_kda forward OK）：
+cp -rn /root/miniconda3/envs/py3.10/lib/python3.10/site-packages/fla /home/venv/libero/lib/python3.10/site-packages/
+# 2) timm：
+/home/venv/libero/bin/pip install --no-deps timm
+# 3) 运行 P2 闭环（单进程）：
+PYTHONPATH=/home/wm-vla-rl/_ext/LIBERO MUJOCO_GL=egl TORCH_HOME=/home/.cache/torch \
+  /home/venv/libero/bin/python <p2_script>   # sys.path 加 _ext/vjepa2 + module1_vjepa2ac
+# 实测：vjepa2 encoder(1012M)+KDA predictor 在 libero venv 加载+forward 通。
+```
+
 ## (备选, Module-3 stretch) LAPA
 ```bash
 git clone https://github.com/LatentActionPretraining/LAPA /home/wm-vla-rl/_ext/LAPA
