@@ -44,7 +44,8 @@
 
 ## 诚实标注的边界
 - 长上下文在 LIBERO 无清晰收益（任务近 Markov）→ **效率是硬通货**，"长历史提升能力"在此任务不成立。
-- WM-native CEM 规划闭环已打通（单进程 sim+encoder+WM+CEM），但**手工 L1-latent reward 太弱、规划未 success** → 指向**学习式 latent-WM reward**（下一步）。
+- WM-native CEM 规划闭环已打通（单进程 sim+encoder+WM+CEM），但**手工 L1-latent reward 太弱、规划未 success** → 换**学习式 progress reward**：CEM 早期真跟着涨 2×（坐实"L1 太弱"），但仍被 hack。
+- **latent-WM-reward GRPO 的核心负结果**：把 CEM 换 GRPO，learned progress reward 被狠狠优化 **+77%（0.47→0.83）但 480 次 rollout 零 success** —— 教科书级 Goodhart。反直觉点：**GRPO 比 CEM hack 得更彻底**，证明**瓶颈在 reward model 不在 optimizer**。修法指向 reward 自身（off-policy 负样本回灌 / goal-conditioned / ensemble 不确定性）。这是 M2 的 reward-hacking case study。
 
 ## 复现
 - 环境配方：`env/SETUP.md`（vjepa2 / py3.10-fla / libero 三套，含 LIBERO sim headless EGL + env 统一）。
@@ -52,4 +53,4 @@
 - 详细机制讲解：`docs/writeup.md`；执行日志：`docs/PROGRESS.md`；完整方案：`docs/PLAN.md`。
 
 ## 状态
-P0 ✅ baseline / **P1 ✅ 高效 KDA WM / P1.5 ✅ novel 跨帧 Block-AttnRes** / P2 闭环已通+诊断（待学习式 reward）/ P3 未动。
+P0 ✅ baseline / **P1 ✅ 高效 KDA WM / P1.5 ✅ novel 跨帧 Block-AttnRes** / P2 ✅ latent-WM-reward GRPO 管线通 + reward-hacking case study（负结果，指向修 reward model）/ P3 未动。

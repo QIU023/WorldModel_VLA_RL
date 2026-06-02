@@ -64,4 +64,17 @@ AttnRes 是 O(N)（cumsum 形，scaling 实测 T→1024、~10% over KDA）。更
 progress head（mean-pool latent→MLP→t/T；held progress-MSE 0.0047、monotonicity 0.60）替手工 L1 当 CEM reward：
 - progress 前 20 步真涨 2×（0.073→0.141）—— **CEM 确实在跟 learned 信号优化**，对比 L1 的持平 ⇒ **坐实"手工 L1 太弱"的诊断**。
 - 但 t20 后回落、未 success。下一层问题：head 仅 60% 单调（噪声）；model-based reward-hacking（CEM 钻 WM 想象的空子）；head goal-agnostic。
-- 下一步：goal-conditioned + 更单调 head / 抗 hacking（ensemble、短 horizon 重规划）/ 换 CEM→GRPO 用 progress reward 训 policy。
+
+### 9b. sim-GRPO with learned reward — 核心负结果：hacking 在 reward 层不在 optimizer 层（2026-06-02）
+把 CEM 换成 GRPO：小 Gaussian policy π(a|z) 在冻结 V-JEPA2 latent 上，真 LIBERO sim rollout，reward=progress head，group-normalized advantage + reverse-KL to ref（`exp_p2c_grpo_sim.py`，group8/H40/60步）。
+| | R_mean (learned progress reward) | held-out success |
+|---|---|---|
+| 起始 (first-5 avg) | 0.471 | **0.00** |
+| 峰值 (step15) | 0.864 | **0.00** |
+| 末尾 (last-5 avg) | **0.833 (+77%)** | **0.00** |
+- **GRPO 机制健康**：R_std 全程 0.04–0.13（组内有方差 → 有梯度，**没踩 zero-variance 坑**，正面兑现了 §2 的风险预案）；reward 被狠狠优化（+77%，~step15 饱和）。
+- **但 480 次 rollout 零 success** → 教科书级 Goodhart：**policy 把"让 mean-pooled latent 读起来像 demo 后期帧"这件事学满，却不做任务**。
+- **反直觉的关键结论**：我们原假设"GRPO 比 CEM 更抗单步 hacking"——**实测证伪**。GRPO 把这个有缺陷的 reward 优化得**比 CEM 更猛更彻底**，hacking 因此**更刺眼**。⇒ **瓶颈是 reward model，不是 optimizer**；换 optimizer 救不了可被钻空子的 reward。
+- **根因**：progress head 只在 demo（in-distribution 成功轨迹）上训 → 没见过 policy 生成的失败态 → 外推时被白嫖；mean-pool 丢 grounding、goal-agnostic。
+- **下一步（指向 reward model 自身）**：① **off-policy/对抗式负样本**——把 policy 自己 hack 出的状态当低-progress 负例回灌重训 head（reward 从自己的 hacking 中学，discriminator 式，最高杠杆）；② goal-conditioned head；③ ensemble + 不确定性惩罚（离分布检测）；④ 掺少量真 sparse success 把 reward grounding 住。
+- **这是 M2 的 HERO 负结果**：完整 latent-WM-reward GRPO 管线打通 + 干净定位 reward hacking 发生在哪、为什么、怎么修 —— 正是 PLAN Week-3 要的 "reward hacking case study"。图/日志 `results/p2c_grpo.{json,log}`。
