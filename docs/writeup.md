@@ -191,3 +191,26 @@ user 定调"P1/P1.5 也转大规模、不允许 toy"。把 efficient WM 从 200-
 3. **AttnRes 的深度轴收益主要体现在 1-步表征质量**（−8.9%），free-run 下缩到 −1.5%（每个 horizon 仍为正）。这是诚实 caveat：跨层 AttnRes 提升单步表征，但不显著改变自回归发散率。
 4. rollout L1 随 h 近乎平（不爆炸，自由 roll 8 步仅 +1.3%）→ WM 想象数值稳定，适合做 RL 环境（Dreamer/TD-MPC2 rollout 不发散）。
 （caveat：free-run 绝对误差 ~0.72–0.77 介于 teacher-force 0.37–0.42 与随机 ~1.13 之间，即喂回预测后退化明显但仍含信息；2 held 任务、L1-not-success。）
+
+### 13d. 严格 all-10-held 泛化复核（2026-06-03，最鲁棒版）—— train=libero_90(仅), held=全 10 个 libero_10 长任务
+为消除 §13c"只有 2 held 任务"的 caveat，把 libero_10 的 **全部 10 个长任务完全 held-out**（train 仅 77 个 libero_90 任务，从不见任何 libero_10），matched 3000-iter 重训三件套，再跑确定性 eval。
+
+**1-步 teacher-force（exp_e15，3197 窗口）：**
+| ckpt | CLEAN held L1 | vs 2-held(§13c) |
+|---|---|---|
+| sdpa_sdpaH10 | 0.41644 | 0.41648 |
+| kda_kdaonlyH10 | 0.41343 | 0.40340 |
+| **kda_arlayerH10** | **0.37033** | 0.36746 |
+
+**free-run rollout（exp_e16，1708 窗口，ctx4→roll8）：**
+| ckpt | rollout mean L1 | h1 → h8 |
+|---|---|---|
+| sdpa_sdpaH10 | 0.7738 | 0.7754 → 0.7708 |
+| kda_kdaonlyH10 | 0.7393 | 0.7390 → 0.7409 |
+| **kda_arlayerH10** | **0.7229** | 0.7227 → 0.7248 |
+
+**结论（鲁棒性确认）：**
+1. **排序 arlayer < kda < sdpa 在全-10-held × 两指标 × 全 horizon 上全部成立** —— 不是 2-held 的偶然。
+2. **跨层 AttnRes 的 1-步增益 10.4%（vs KDA），比 2-held 的 8.9% 还略大** → 单步表征增益**鲁棒泛化**到全部 10 个 unseen 长任务（free-run 下缩到 2.2%，仍正）。
+3. **KDA-over-SDPA：1-步压缩到 0.7%（近 parity），但 rollout 放大到 4.5%** → "linear 在自回归想象上更准"的核心论点在严格 held-out 上**保留**。
+4. ⚠️ 方法论旁证：训练内部的**随机 noisy held** 曾误报 arlayer(0.239) > kda(0.231)；**确定性 3197-窗口 eval 推翻之**（arlayer 0.370 << kda 0.413）→ 再次坐实"用确定性大样本 eval，不信随机小样本"。

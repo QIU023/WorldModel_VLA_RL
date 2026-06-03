@@ -18,16 +18,16 @@
 | 相对 | — | **~26×快 / ~9.6×省显存** |
 | rollout 步成本 | 重算 growing context O(N²) | **O(1)/步（recurrent SSM state）** |
 
-**质量（held-out L1，越低越好；exp_e15/e16）：**
+**质量（held-out L1，越低越好；最严格版：libero_10 全部 10 个长任务完全 held-out，train 仅 libero_90；exp_e15/e16, writeup §13d）：**
 | 指标 | SDPA (softmax) | KDA (linear) | **KDA+layer-AttnRes** |
 |---|---|---|---|
-| 1-步 teacher-force, clean held (504 窗口) | 0.41648 | 0.40340 | **0.36746** |
-| free-run 自回归 rollout, mean L1 (263 窗口) | 0.7743 | 0.7311 | **0.7204** |
+| 1-步 teacher-force, clean held (3197 窗口) | 0.41644 | 0.41343 | **0.37033** |
+| free-run 自回归 rollout, mean L1 (1708 窗口) | 0.7738 | 0.7393 | **0.7229** |
 
-**结论（诚实，nuanced）：**
-1. **KDA(linear, O(N)) 在质量上 match 且略胜 SDPA(softmax)**，且**优势在 free-run rollout 上放大**（1-步 −3.1% → rollout **−5.6%**）—— 线性 WM 正是**更好的自回归想象引擎**（也是 imagination-RL 环境）。"linear 亏质量"在标准短上下文 recipe 下**不成立、反而 KDA 赢**。
-2. **跨层 Block-AttnRes 再补单步表征增益 −8.9%**（vs KDA）；但 free-run rollout 下缩到 **−1.5%**（每个 horizon 仍为正）。诚实 caveat：AttnRes 主要提升**单步表征质量**，不显著改自回归发散率。
-3. 排序 **arlayer < kda < sdpa** 在**两个指标 × 全部 8 个 horizon** 上一致，且删 ckpt 重训后**可复现**（详见 `docs/writeup.md §13/§13c`）。
+**结论（诚实，nuanced；全-10-held × 两指标 × 全 8 horizon 排序一致、可复现）：**
+1. **跨层 Block-AttnRes 单步表征增益 −10.4%**（vs KDA）—— 在 10 个完全 unseen 长任务上**鲁棒泛化**（比 2-held 的 −8.9% 还略大）；free-run rollout 下缩到 −2.2%（仍正）。AttnRes 主要提升**单步表征质量**。
+2. **KDA(linear, O(N)) match SDPA(softmax)**：1-步近 parity（−0.7%），但**优势在 free-run rollout 上放大到 −4.5%** —— 线性 WM 正是**更好的自回归想象引擎**（也是 imagination-RL 环境）。"linear 亏质量"在标准 recipe 下**不成立**。
+3. 方法论：训练内部**随机 noisy held** 曾误报 arlayer>kda；**确定性 3197-窗口 eval 推翻之** → 坚持确定性大样本 eval（详见 `docs/writeup.md §13c/§13d`，2-held 与 10-held 结论一致）。
 
 ### 1. 效率：KDA 是 O(N)，softmax O(N²)
 ![scaling](module1_vjepa2ac/results/scaling_3way.png)
@@ -64,7 +64,7 @@
 - **Finale — 汇合**：换上 **O(N) KDA WM** 推到 LIBERO-LONG 超长 horizon，证明高效 WM 使能超长任务。
 
 ## 状态
-P0 ✅ / **P1 ✅·P1.5 ✅** / **架构定论 ✅**（官方标准 recipe matched 3000-iter 全参 SFT，85 任务：**跨层 AttnRes 0.367 < KDA 0.403 < SDPA 0.416** @1-步 clean held；free-run rollout 同序，KDA-over-SDPA 优势放大至 −5.6%；finale WM=`kda_arlayer2`，可复现 §13c）/ M2.1 ✅ grounded reward（修 hacking）/ M2.1b ✅ grounded-CEM（诚实稀疏）/ M2C ✅ imagination actor-critic（稳定，验证 WM 端到端接入）/ **finale ✅ 端到端打通**（真 sim eval）/ P3 未动 / **task#12 真 VLA 未动**。
+P0 ✅ / **P1 ✅·P1.5 ✅** / **架构定论 ✅·严格泛化复核 ✅**（官方标准 recipe matched 3000-iter 全参 SFT；最严格：libero_10 **全 10 长任务完全 held-out**：**跨层 AttnRes 0.370 < KDA 0.413 < SDPA 0.416** @1-步 clean held(3197窗口)；free-run rollout 同序，AttnRes −10.4%/KDA-over-SDPA rollout −4.5%；finale WM=`kda_arlayerH10`，2-held 与 10-held 一致、可复现 §13d）/ M2.1 ✅ grounded reward（修 hacking）/ M2.1b ✅ grounded-CEM（诚实稀疏）/ M2C ✅ imagination actor-critic（稳定，验证 WM 端到端接入）/ **finale ✅ 端到端打通**（真 sim eval，libero_10 success 0%=policy-class 限）/ P3 未动 / **task#12 真 VLA 未动**。
 
 ## Finale 诚实结论
 - **效率论点（项目真贡献）成立**：自回归 rollout @T=512 下 softmax 75s/96GB（768 OOM），O(N) KDA 2.9s/10GB（→1024）；T=128 全参训练 SDPA 需 act-ckpt（慢）、KDA 原生训得动 → 高效 WM **能**当 softmax 烧不起的长程想象环境。

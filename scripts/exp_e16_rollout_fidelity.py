@@ -15,8 +15,9 @@ from src.models.utils.modules import build_action_block_causal_attention_mask
 DEV = "cuda"; CKPT = "/home/wm-vla-rl/_ext/ckpts"
 FPC = 14; FSTP = 5; CTX = 4; HOR = 8                      # 窗口14帧：context 4 + roll 8（留余量）
 ROOT = "/home/wm-vla-rl/_ext/datasets/LIBERO"
-# (ckpt, kda?, attnres?) —— matched 3000-iter recipe
-RUNS = [("sdpa_sdpa2_sftfull.pt", 0, 0), ("kda_kdaonly2_sftfull.pt", 1, 0), ("kda_arlayer2_sftfull.pt", 1, 1)]
+# (ckpt, kda?, attnres?) —— 后缀走 env（默认 matched "2"；all-10-held 用 "H10"）
+SUF = os.environ.get("EVAL_SUF", "2")
+RUNS = [(f"sdpa_sdpa{SUF}_sftfull.pt", 0, 0), (f"kda_kdaonly{SUF}_sftfull.pt", 1, 0), (f"kda_arlayer{SUF}_sftfull.pt", 1, 1)]
 
 
 def poses_to_diffs(p):
@@ -29,7 +30,8 @@ def poses_to_diffs(p):
 def main():
     transform = make_transforms(random_horizontal_flip=False, random_resize_aspect_ratio=[0.75, 1.35],
                                 random_resize_scale=[1.777, 1.777], reprob=0., auto_augment=False, motion_shift=False, crop_size=256)
-    held = sorted(glob.glob(f"{ROOT}/libero_10/*.hdf5"))[-2:]
+    _all = sorted(glob.glob(f"{ROOT}/libero_10/*.hdf5"))
+    held = _all if int(os.environ.get("EVAL_HOLD_ALL10", "0")) else _all[-2:]
     windows = []
     for f in held:
         with h5py.File(f, "r") as hf:

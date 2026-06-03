@@ -88,9 +88,13 @@ def main():
     root = os.path.dirname(LIBERO_DIR)
     l10 = sorted(glob.glob(f"{root}/libero_10/*.hdf5"))
     extra = sorted(glob.glob(f"{root}/libero_90/*.hdf5")) if os.path.isdir(f"{root}/libero_90") else []
-    train_files = extra + l10[:max(1, len(l10) - 2)]
-    held_files = l10[max(1, len(l10) - 2):]
-    print(f"data: train_files={len(train_files)} (libero_90={len(extra)}+libero_10={len(l10)-2}) held_files={len(held_files)}", flush=True)
+    if int(os.environ.get("SFT_HOLD_ALL10", "0")):       # 更严格：train=libero_90(仅)，held=全 10 个 libero_10 长任务
+        train_files = extra
+        held_files = l10
+    else:                                                 # 默认：train=libero_90+libero_10[:8]，held=libero_10[8:]
+        train_files = extra + l10[:max(1, len(l10) - 2)]
+        held_files = l10[max(1, len(l10) - 2):]
+    print(f"data: train_files={len(train_files)} (libero_90={len(extra)}+libero_10={len(train_files)-len(extra)}) held_files={len(held_files)} HOLD_ALL10={os.environ.get('SFT_HOLD_ALL10','0')}", flush=True)
     ds = LIBERODataset(train_files, transform)
     held_ds = LIBERODataset(held_files, transform)
     loader = torch.utils.data.DataLoader(ds, batch_size=BATCH, shuffle=True, num_workers=4,
