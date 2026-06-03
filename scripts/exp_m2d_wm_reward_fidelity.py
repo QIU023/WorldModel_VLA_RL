@@ -16,6 +16,7 @@ from hubconf import vjepa2_ac_vit_giant
 from rollout import rollout as wm_rollout
 from utils.mpc_utils import compute_new_pose
 from kda_acblock import kda_ify_predictor
+from src.models.utils.modules import build_action_block_causal_attention_mask
 
 DEV = "cuda"
 RES = "/home/wm-vla-rl/module1_vjepa2ac/results"
@@ -57,7 +58,9 @@ def main():
             kda_ify_predictor(pred, use_attnres=bool(attnres))
         pred.load_state_dict(torch.load(f"{CKPT}/{ck}", map_location="cpu"))
         pred = pred.to(DEV).eval()
-        pred.attn_mask = torch.zeros(1, 1, dtype=torch.bool, device=DEV)
+        # 正确 block-causal mask（按 rollout 长度建，别用 zeros(1,1) 破坏因果）
+        pred.attn_mask = build_action_block_causal_attention_mask(
+            MAXH + 2, pred.grid_height, pred.grid_width, add_tokens=2).to(DEV).contiguous()
         tok = pred.grid_height * pred.grid_width
 
         err = np.zeros(MAXH); infl = np.zeros(MAXH); cnt = np.zeros(MAXH)

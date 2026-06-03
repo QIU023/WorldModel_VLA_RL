@@ -24,6 +24,7 @@ from hubconf import vjepa2_ac_vit_giant
 from rollout import step_predictor
 from utils.mpc_utils import compute_new_pose
 from kda_acblock import kda_ify_predictor
+from src.models.utils.modules import build_action_block_causal_attention_mask
 
 
 class RewardModel(nn.Module):                              # 与 exp_m2a 同构（内联避免拖入 libero）
@@ -88,8 +89,9 @@ def main():
     pred.load_state_dict(torch.load(f"{CKPT}/{WM}", map_location="cpu"))
     enc = enc.to(DEV).eval(); pred = pred.to(DEV).eval()
     for p in list(enc.parameters()) + list(pred.parameters()): p.requires_grad_(False)
-    pred.attn_mask = torch.zeros(1, 1, dtype=torch.bool, device=DEV)
     tok = pred.grid_height * pred.grid_width
+    pred.attn_mask = build_action_block_causal_attention_mask(   # 正确 block-causal（修 zeros(1,1) 破因果 bug）
+        H + 2, pred.grid_height, pred.grid_width, add_tokens=2).to(DEV).contiguous()
     dim = enc.embed_dim if hasattr(enc, "embed_dim") else 1408
 
     reward = RewardModel(dim).to(DEV).eval()
