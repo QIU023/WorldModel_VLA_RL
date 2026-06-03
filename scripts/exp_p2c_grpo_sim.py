@@ -115,4 +115,5 @@ def main():
     print(f"GRPO_DONE  R: {r0:.3f}->{r1:.3f}  succ: {s0:.2f}->{s1:.2f}", flush=True)
 
 
-main()
+if __name__ == "__main__":
+    main()

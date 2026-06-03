@@ -45,7 +45,7 @@
 ## 诚实标注的边界
 - 长上下文在 LIBERO 无清晰收益（任务近 Markov）→ **效率是硬通货**，"长历史提升能力"在此任务不成立。
 - WM-native CEM 规划闭环已打通（单进程 sim+encoder+WM+CEM），但**手工 L1-latent reward 太弱、规划未 success** → 换**学习式 progress reward**：CEM 早期真跟着涨 2×（坐实"L1 太弱"），但仍被 hack。
-- **latent-WM-reward GRPO 的核心负结果**：把 CEM 换 GRPO，learned progress reward 被狠狠优化 **+77%（0.47→0.83）但 480 次 rollout 零 success** —— 教科书级 Goodhart。反直觉点：**GRPO 比 CEM hack 得更彻底**，证明**瓶颈在 reward model 不在 optimizer**。修法指向 reward 自身（off-policy 负样本回灌 / goal-conditioned / ensemble 不确定性）。这是 M2 的 reward-hacking case study。
+- **naive WM-as-reward 玩具会被 hack（动机，非门面）**：自制 progress 标量 + GRPO，reward 被优化 +77%（0.47→0.83）但 480 rollout 零 success（Goodhart；GRPO 比 CEM hack 得更彻底 → 瓶颈在 reward model 不在 optimizer）。→ **M2 据此重定义为标准范式**：**imagination RL in latent WM（TD-MPC2/Dreamer）**——policy 在高效 latent WM 想象里训，reward 用**接地真 success + 含失败态训练**的标准 reward model（不可 hack），value 用真 reward bootstrap。**M2.1 grounded reward**：含失败态训练 → 对 unseen 被-hack 态 r̂ **0.258 vs 老 head 0.559**（less foolable；硬负例鲁棒性仍部分 → 导出对抗负例 + value 学习）。详见 `docs/writeup.md §10`。
 
 ## 复现
 - 环境配方：`env/SETUP.md`（vjepa2 / py3.10-fla / libero 三套，含 LIBERO sim headless EGL + env 统一）。
@@ -53,4 +53,4 @@
 - 详细机制讲解：`docs/writeup.md`；执行日志：`docs/PROGRESS.md`；完整方案：`docs/PLAN.md`。
 
 ## 状态
-P0 ✅ baseline / **P1 ✅ 高效 KDA WM / P1.5 ✅ novel 跨帧 Block-AttnRes** / P2 ✅ latent-WM-reward GRPO 管线通 + reward-hacking case study（负结果，指向修 reward model）/ P3 未动。
+P0 ✅ baseline / **P1 ✅ 高效 KDA WM / P1.5 ✅ novel 跨帧 Block-AttnRes** / **M2（重定义为 imagination RL in latent WM, TD-MPC2/Dreamer 标准范式）**：M2.1 ✅ grounded reward（接地真 success、修掉 hacking 根因）/ M2.2 value(TD) 🔨 / M2.3 imagination actor 🔨 / P3 未动。

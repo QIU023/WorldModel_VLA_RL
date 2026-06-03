@@ -1,0 +1,1 @@
+{"held_auc": 1.0, "pos_mean": 0.680321991443634, "neg_mean": 0.002051129238680005, "n_pos": 14651, "n_neg": 2400, "gamma": 0.98, "hacked_states": 60, "hacked_success": false, "new_grounded_reward": 0.2578968107700348, "old_progress_head": 0.5590975284576416}

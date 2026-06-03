@@ -77,4 +77,26 @@ progress head（mean-pool latent→MLP→t/T；held progress-MSE 0.0047、monoto
 - **反直觉的关键结论**：我们原假设"GRPO 比 CEM 更抗单步 hacking"——**实测证伪**。GRPO 把这个有缺陷的 reward 优化得**比 CEM 更猛更彻底**，hacking 因此**更刺眼**。⇒ **瓶颈是 reward model，不是 optimizer**；换 optimizer 救不了可被钻空子的 reward。
 - **根因**：progress head 只在 demo（in-distribution 成功轨迹）上训 → 没见过 policy 生成的失败态 → 外推时被白嫖；mean-pool 丢 grounding、goal-agnostic。
 - **下一步（指向 reward model 自身）**：① **off-policy/对抗式负样本**——把 policy 自己 hack 出的状态当低-progress 负例回灌重训 head（reward 从自己的 hacking 中学，discriminator 式，最高杠杆）；② goal-conditioned head；③ ensemble + 不确定性惩罚（离分布检测）；④ 掺少量真 sparse success 把 reward grounding 住。
-- **这是 M2 的 HERO 负结果**：完整 latent-WM-reward GRPO 管线打通 + 干净定位 reward hacking 发生在哪、为什么、怎么修 —— 正是 PLAN Week-3 要的 "reward hacking case study"。图/日志 `results/p2c_grpo.{json,log}`。
+- **定位（降级为 §10 的动机，不当门面）**：这是个 naive **WM-as-reward** 玩具（自制 progress 标量、goal-agnostic、只见正样本）→ 必然被 hack。它的价值仅是**干净地暴露了"为什么必须用接地的、含失败态训练的标准 reward model + value"** → 直接导出 §10 的标准范式。图/日志 `results/p2c_grpo.{json,log}`。
+
+## 10. M2 重定义 — imagination RL in latent WM（TD-MPC2/Dreamer 标准范式，2026-06-03）
+**项目定调（user）**：除 efficient 长程 WM + 预训练 ckpt 结构微调（P1/P1.5，我们的差异化创新）外，**其余 WM-VLA-RL 一律对标算力允许下的大规模、标准 setup，不允许 toy / reward-hacking 式实验**。据此 M2 从"手搓 progress-head GRPO"重定义为 **paradigm (A) imagination RL in latent WM**：policy 在学习到的 latent 世界模型**想象**里训，标准方法 = **DreamerV3 / TD-MPC2**。
+- **为什么是 (A) 而非 model-free（SimpleVLA-RL/RIPT-VLA）或 WM-as-reward**：SimpleVLA-RL/RIPT-VLA 是 model-free 真-sim RL、根本不含 WM（只能当兜底 baseline）；而 (A) 让 **P1 的 O(N) 高效 WM 直接变成使能器**——softmax WM 想象海量长轨迹 O(N²) 烧不起，我们 O(N) 能廉价想象 → "高效 WM → 海量想象 RL" 是比"WM 当 reward"紧得多的故事。
+- **组件映射（标准 TD-MPC2/Dreamer ← 我们的资产）**：
+
+| 标准组件 | 我们的实现 | 状态 |
+|---|---|---|
+| latent dynamics d(z,a)→z′ | V-JEPA2-AC + KDA/AttnRes predictor（预训练 + LIBERO 微调，**冻结/轻调** = RL-from-pretrained-WM / offline-MBRL） | ✅ P1 |
+| planner（MPPI/CEM） | 现有 CEM = **无 value 的 TD-MPC** | ✅ P2 |
+| **reward model R(z)** | 接地到**真 LIBERO 成功**、训练**含失败态**的 head（§10a） | ✅ M2.1 |
+| value V(z)（TD） | TD 学习、真 reward bootstrap → 稀疏 success 稠密化 | 🔨 M2.2 |
+| actor π(z) | 想象里 actor-critic（Dreamer）/ MPPI prior（TD-MPC2） | 🔨 M2.3 |
+
+- **反 hacking = 标准机制**（非补丁）：reward 接地真 success + value 用真 reward bootstrap + 短想象 horizon + WM 不确定性/保守惩罚（offline-MBRL：MOPO/COMBO 思路）。
+- benchmark = libero-spatial 单 suite 先通；held-out **success-rate**（真指标，非 reward）作 gate。
+
+### 10a. M2.1 grounded reward model — 修掉 §9b 的 hacking 根因
+标准 reward modeling（Dreamer 的 reward predictor）：r̂(z) 接地到**真实成功结局**，训练数据**含失败态**（随机策略 rollout = 负例，γ-return-to-success 给正例 demo）→ 不像 demo-only progress head 那样可被钻空子。`exp_m2a_grounded_reward.py`。
+- **接地性（full：14.6k pos / 2.4k neg）**：held-out AUC(成功导向 vs 失败)=**1.000**，pos r̂ 0.680 / neg 0.002。**诚实 caveat**：AUC=1.0 是因为**随机负例太易分**（乱挥 vs 有目的操作）——这不是卖点。
+- **真正信息在硬负例（unseen 被-hack 态）**：new grounded r̂ **0.258** vs old progress head **0.559**——接地 reward 对没训过的 hacked 态明显更不易被骗（老 head 虚高 2.2×），但 0.258 仍高于纯失败档 0.002 → **硬负例鲁棒性只是部分**。这恰好诚实地导出下两步：①把 hacked 态当**对抗负例**回灌重训（adversarial reward modeling）；②**value 学习**（TD bootstrap 真 success）才是最终接地"行为"的关键，reward head 单独不够。
+- 这是 imagination-RL 的地基（reward → value → actor）。图/日志 `results/m2a_grounded_reward.{json,log}`。
