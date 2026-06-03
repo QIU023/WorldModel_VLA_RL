@@ -1,0 +1,1 @@
+{"name": "sdpa", "wm": "sdpa_sdpaH10_sftfull.pt", "H": 48, "B": 8, "status": "OOM", "steps_done": 0, "peak_mem_gb": 133.2, "wall_s": 116.0, "imag_reward_start": 0.0, "imag_reward_end": 0.0}

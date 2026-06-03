@@ -83,3 +83,15 @@
 2. **O(N) KDA WM 是使能器**:T=512 **5.3s(比 SDPA 快 13×)**、T=768 仍跑得动(86GB 不 OOM)→ 高效 WM 才撑得起超长程想象 RL。
 3. **诚实 nuance**:跨层 AttnRes 质量更好(已证)但**想象显存更高**(缓存所有 block 输出),T=768 也 OOM → **超长想象首选纯 KDA(最省),AttnRes 是"显存够时换质量"的变体**。这给架构选择一个清晰的工程含义。
 图:`module1_vjepa2ac/results/imagination_cost.png`。
+
+## 9. 结果 — 想象 RL 层面的墙(exp_m2j,2026-06-03)
+可微 Dreamer 式 actor-critic 在 WM 想象里训(BC-init latent actor + grounded r̂),3 WM @ H=48 B=8:
+| 想象 WM | status | peak 显存 | imag_reward |
+|---|---|---|---|
+| SDPA(softmax) | **OOM(0/8 步)** | **133GB** | — |
+| KDA(linear) | ok(8/8) | **14.7GB** | 0.351→0.381 |
+| KDA+AttnRes | ok(8/8) | **17.6GB** | ~0.33 |
+（另:H=128 时 SDPA peak 134GB OOM。）
+
+**结论**:可微想象 rollout 的 autograd 要存每步 attention 激活;**SDPA 的 O(t²) 注意力矩阵累加,在 modest H=48 就 OOM(133GB),连一步都训不了**;O(N) KDA/AttnRes 只用 ~15-18GB(~8-9× 省)跑完整 RL。**= 用户命题:softmax WM 训不了长想象 RL、O(N) WM 能学**。图 `m2j_imagine_rl_3way.png`。
+（caveat:imag_reward 基本持平——tiny BC-actor + 迁移 reward 的天花板;A2 换 OFT-蒸馏 latent 策略 + ultra_long sub-goal reward 后预期能涨。这是 stepping stone,不是最终 success。)
