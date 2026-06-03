@@ -116,3 +116,15 @@ progress head（mean-pool latent→MLP→t/T；held progress-MSE 0.0047、monoto
 - **有效三方对比（h16 |err|，已修正 mask）**：SDPA **0.176** / KDA-full **0.119** / KDA⊕AttnRes **0.213**（h4 都 ~0.01–0.02）。
 - **诚实结论（valid 数据，不 spin）**：① 原假设「跨帧 AttnRes 是想象 enabler/降 exploitation」**不成立**——这里 KDA-full reward-error 反而最低，且与 P1.5 latent-MSE（AttnRes 漂移更低）**不一致** → reward-error 是 mean-pool+sigmoid 粗代理、两度量测不同东西、**真判据是 success-rate**。② **但有干净正结果支撑 finale**：**高效 O(N) KDA WM 在 teacher-forced 真 action、长 horizon(h16) 的 imagination reward-fidelity 与 O(N²) SDPA 相当（甚至更好）→ 高效 WM 是有效的想象环境**（想象 rollout 跟踪真 reward 不逊 softmax），且不依赖"AttnRes 特殊"。③ WM-exploitation 是 **off-distribution（随机 actor）** 现象 → 靠标准 grounding 压。
 - **finale WM 选型**：用 **KDA⊕AttnRes**（novel 结构 + P1.5 长程 latent 保真最好；reward-error 0.213 与他者同量级、在噪声内）。mask bug 修复回灌 exp_m2c/exp_p2_cem。日志 `results/m2d_fixed.log`。
+
+## 11. Track A — P1/P1.5 大规模化：长序列 WM 微调（2026-06-03）
+user 定调"P1/P1.5 也转大规模、不允许 toy"。把 efficient WM 从 200-demo/T=64/adapter 升级到**全参微调、长序列 T=128、libero_10(LIBERO-LONG, T~265)+spatial、effective batch 8**（`exp_e12` 加 FT_DATA 多集拼接 / FT_BS / FT_ACCUM / FT_ACT_CKPT / ckpt-resume）。
+| WM @ T=128 全参微调 | held-out next-latent MSE | cost |
+|---|---|---|
+| **SDPA-full** | **OOM**（140GB H200 训不起） | O(N²) |
+| **KDA⊕AttnRes（finale WM）** | **0.13748** | O(N) |
+| KDA-full | 0.13886 | O(N) |
+| _SDPA 零样本参考_ | _0.901_ | — |
+- **效率墙在训练级（比 P1 forward-scaling 更进一步）**：长序列 T=128 下 **softmax WM 连微调都 OOM**（O(N²) 注意力 33k×33k），**O(N) KDA 变体训得动**且 held-out 0.137（6.5× 优于 SDPA 零样本）。
+- **AttnRes ≥ full**（0.1375<0.1389，且 eval@50→100 gap 扩大 0.0007→0.0015）—— 与 P1.5"AttnRes 在更难/更长场景增益更大"一致。**finale WM = `kda_attnres_long`**。
+- **infra 副产品（Module 4）**：① ckpt/resume（防长训 OOM 丢进度）；② **KDA fla 内核 T=128 micro-batch 上限 ~8**（bs16/48→Triton grid 溢出），用**梯度累积**拿 effective batch；③ act-ckpt 在重前向上 2× 重算→病态慢（12min/步），改 **bs1-无ckpt 本就填满 134GB VRAM + 快**。日志 `results/trackA_kda_{attnres,full}_long.log`、`trackA_sdpa_long.log`(OOM)。

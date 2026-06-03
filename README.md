@@ -59,4 +59,4 @@
 - **Finale — 汇合**：换上 **O(N) KDA WM** 推到 LIBERO-LONG 超长 horizon，证明高效 WM 使能超长任务。
 
 ## 状态
-P0 ✅ / **P1 ✅·P1.5 ✅（小规模，待 Track A 大规模化）** / M2.1 ✅ grounded reward（修掉 hacking 根因）/ M2.1b 🔄 grounded-CEM eval / M2.2 value 🔨 / M2.3 actor 🔨 / Track A scale-up 🔨 / P3 未动。
+P0 ✅ / **P1 ✅·P1.5 ✅** / **Track A ✅ 大规模化**（T=128 长序列全参微调：SDPA-full **OOM**，KDA⊕AttnRes **0.137** / KDA-full 0.139——**效率墙到训练级**，finale WM=`kda_attnres_long`）/ M2.1 ✅ grounded reward（修 hacking）/ M2.1b ✅ grounded-CEM（诚实稀疏）/ M2C ✅ imagination actor-critic scaffold（稳定）/ **finale 🔨 imagination RL on libero_10** / P3 未动。
