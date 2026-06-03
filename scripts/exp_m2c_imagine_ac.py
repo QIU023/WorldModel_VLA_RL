@@ -87,9 +87,19 @@ def lambda_return(rewards, values, gamma, lam):
 
 def main():
     enc, pred = vjepa2_ac_vit_giant(pretrained=True)
-    if int(os.environ.get("M2C_KDA", "0")):                # finale：换 O(N) KDA WM（chunk 路径可微，长想象用）
-        kda_ify_predictor(pred, use_attnres=bool(int(os.environ.get("M2C_ATTNRES", "0"))))
-    pred.load_state_dict(torch.load(f"{CKPT}/{WM}", map_location="cpu"))
+    WM_FULL = os.environ.get("M2C_WM_FULL", "")            # 验证好的全标准 WM（enc+pred, KDA+跨层AttnRes）
+    if WM_FULL:                                            # ← 接入正确架构的 WM（overnight 集成）
+        kda_ify_predictor(pred, use_attnres=False)         # 纯 KDA（管帧）
+        if int(os.environ.get("M2C_ARLAYER", "1")):
+            from kda_acblock import attnres_ify_predictor
+            attnres_ify_predictor(pred, num_blocks=int(os.environ.get("AR_NUM_BLOCKS", "8")))   # 跨层 AttnRes（管深度）
+        sd = torch.load(f"{CKPT}/{WM_FULL}", map_location="cpu")
+        enc.load_state_dict(sd["encoder"]); pred.load_state_dict(sd["predictor"])   # 同时载训练好的 encoder（一致性）
+        print(f"[WM] loaded validated KDA+跨层AttnRes WM from {WM_FULL}", flush=True)
+    else:
+        if int(os.environ.get("M2C_KDA", "0")):
+            kda_ify_predictor(pred, use_attnres=bool(int(os.environ.get("M2C_ATTNRES", "0"))))
+        pred.load_state_dict(torch.load(f"{CKPT}/{WM}", map_location="cpu"))
     enc = enc.to(DEV).eval(); pred = pred.to(DEV).eval()
     for p in list(enc.parameters()) + list(pred.parameters()): p.requires_grad_(False)
     tok = pred.grid_height * pred.grid_width

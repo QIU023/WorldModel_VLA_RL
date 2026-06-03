@@ -27,6 +27,10 @@ def main():
     dev = "cuda"
     from hubconf import vjepa2_ac_vit_giant
     enc, pred = vjepa2_ac_vit_giant(pretrained=True); del pred; torch.cuda.empty_cache()
+    _wm = os.environ.get("PREP_WM_ENC", "")               # 从验证 WM ckpt 载训练好的 encoder（一致性）
+    if _wm:
+        sd = torch.load(_wm, map_location="cpu"); enc.load_state_dict(sd["encoder"])
+        print(f"[enc] loaded trained encoder from {_wm}", flush=True)
     enc = enc.to(dev).eval()
     transform = make_transforms(crop_size=256, random_horizontal_flip=False,
                                 random_resize_aspect_ratio=(1., 1.), random_resize_scale=(1., 1.),
