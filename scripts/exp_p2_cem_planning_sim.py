@@ -101,6 +101,20 @@ def main():
         MPC["objective"] = progress_obj
         print("REWARD=progress (learned head, replaces L1)", flush=True)
 
+    # (M2.1b) grounded reward（接地真 success、含失败态训练）当 CEM objective —— 测 WM 想象+接地 reward 能否 control
+    if os.environ.get("REWARD", "") == "grounded":
+        sys.path.insert(0, "/home/wm-vla-rl/scripts")
+        from exp_m2a_grounded_reward import RewardModel
+        rm = RewardModel(dim).to(DEV).eval()
+        rm.load_state_dict(torch.load("/home/wm-vla-rl/_ext/ckpts/reward_model.pt", map_location="cpu"))
+
+        def grounded_obj(a, b):                                   # a:[S,tok*dim] → 1-r̂（mean-pool token；rm 自带输入 LayerNorm）
+            with torch.no_grad():
+                return 1.0 - rm(a.view(a.shape[0], tok, dim).mean(1)).squeeze(-1)
+        MPC["objective"] = grounded_obj
+        phead = lambda zz: rm(zz.mean(-2))                        # 复用下方 prog 打印（mean-pool token 后打 grounded r̂）
+        print("REWARD=grounded (M2.1 grounded reward model, replaces progress head)", flush=True)
+
     success = False
     for t in range(MAX_STEPS):
         img = obs["agentview_image"]
