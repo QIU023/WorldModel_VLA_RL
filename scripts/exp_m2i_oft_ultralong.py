@@ -3,10 +3,18 @@
 ultra_long harness(LiLo bddl + closed predicate + init_states)。unnorm_key=libero_10(模型训练统计)。
 """
 import os, sys, json, numpy as np, torch
+import faulthandler; faulthandler.enable()
 from collections import deque
 os.environ.setdefault("MUJOCO_GL", "egl")
 os.environ.setdefault("HF_HOME", "/home/.hf_home")
 os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")  # protobuf 4.x + tf2.15 兼容
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
+# tf(被 OFT 拉进来做图像预处理)别抢 GPU —— 否则和 torch 7B + mujoco EGL 争 GPU → core dump
+try:
+    import tensorflow as _tf
+    _tf.config.set_visible_devices([], "GPU")
+except Exception:
+    pass
 sys.path.insert(0, "/home/wm-vla-rl/_ext/LIBERO")
 sys.path.insert(0, "/home/wm-vla-rl/_ext/openvla-oft")
 
@@ -52,6 +60,7 @@ def main():
         task = bench.get_task(ti)
         bddl = bench.get_task_bddl_file_path(ti)
         init_states = bench.get_task_init_states(ti)
+        print(f"  [task{ti}] creating env...", flush=True)
         env = OffScreenRenderEnv(bddl_file_name=bddl, camera_heights=256, camera_widths=256)
         env.seed(0)
         succ = 0

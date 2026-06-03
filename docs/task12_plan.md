@@ -95,3 +95,14 @@
 
 **结论**:可微想象 rollout 的 autograd 要存每步 attention 激活;**SDPA 的 O(t²) 注意力矩阵累加,在 modest H=48 就 OOM(133GB),连一步都训不了**;O(N) KDA/AttnRes 只用 ~15-18GB(~8-9× 省)跑完整 RL。**= 用户命题:softmax WM 训不了长想象 RL、O(N) WM 能学**。图 `m2j_imagine_rl_3way.png`。
 （caveat:imag_reward 基本持平——tiny BC-actor + 迁移 reward 的天花板;A2 换 OFT-蒸馏 latent 策略 + ultra_long sub-goal reward 后预期能涨。这是 stepping stone,不是最终 success。)
+
+## 10. 结果 — OpenVLA-OFT baseline on Ultra-Long(step2,2026-06-03)
+OFT 7B(libero-10 ckpt,官方推理:action-chunk + L1 head + proprio + wrist)在 Ultra-Long 3 任务:
+| task | success |
+|---|---|
+| kitchen_organization(9步) | 0% |
+| organize_table(16步) | 0% |
+| cooking_preparation(10步) | 0% |
+| **overall** | **0%** |
+**坐实 headroom**:真 VLA(LIBERO-10 上 94.5%)在 Ultra-Long **0%** —— 与 LiLo-VLA 论文一致(OpenVLA-OFT/π0.5 baseline 0%)。超长多阶段组合是真难点,有大空间。
+（infra 坑:OFT 7B 在 GPU + mujoco **EGL** 渲染会 core-dump(GL/CUDA context 冲突)→ 用 `MUJOCO_GL=osmesa` CPU 渲染避开;tf GPU 版也禁掉。）
