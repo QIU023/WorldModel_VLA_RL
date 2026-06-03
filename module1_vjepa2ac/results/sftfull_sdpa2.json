@@ -1,0 +1,1 @@
+{"mode": "sdpa", "attnres": false, "fpc": 8, "auto": 2, "iters": 3000, "held_jloss": 0.2578320340253413, "final_loss": 0.4701604151725769}

@@ -165,3 +165,29 @@ user 定调"P1/P1.5 也转大规模、不允许 toy"。把 efficient WM 从 200-
 - **集成成功**：`[WM] loaded validated...` + `[actor] BC-init`，imag_reward BC 起步 0.40（vs from-scratch 0.17）。
 - **sim success（libero_10, 4任务×3ep）：BC alone 0% / BC+imagination 0%**。
 - **结论（再确认）**：瓶颈是 **policy class**（微型 reactive MLP，无语言/记忆），不是 WM —— 换上最优 WM 也救不了；LIBERO-LONG 多阶段长任务需**真 VLA**（task#12）。WM 集成是干净的 demonstration，success 受 policy 容量限。
+
+### 13c. Matched-recipe 复现 + 多步 rollout-fidelity（2026-06-03，最强架构证据）
+清理删掉了 §13 的对比 ckpt，故把 **3 个 WM 全部用同一 3000-iter 标准 recipe 重训**（消除"原始 iter 数未知"的不公平），再跑两个确定性 eval。
+
+**(a) 1-步 teacher-force 干净 held（exp_e15，504 非重叠窗口）—— 复刻 §13：**
+| ckpt (matched) | CLEAN held jloss(L1) | §13 旧值 |
+|---|---|---|
+| sdpa_sdpa2 | 0.41648 | 0.42106 |
+| kda_kdaonly2 | 0.40340 | 0.39915 |
+| **kda_arlayer2** | **0.36746** | 0.36430 |
+
+排序 **arlayer < kda < sdpa** 完全复刻；AttnRes 比纯 KDA −8.9%，KDA 比 SDPA −3.1%。结果**可复现**（删ckpt重训后一致）。
+
+**(b) 多步自由自回归 rollout-fidelity（exp_e16，263 窗口，ctx=4 → 自由 roll 8 步，喂回预测 latent，真 action/state 作条件）—— WM 真正该被评的指标：**
+| ckpt | rollout mean L1 | h1 → h8 |
+|---|---|---|
+| sdpa_sdpa2 | 0.7743 | 0.7711 → 0.7761 |
+| kda_kdaonly2 | 0.7311 | 0.7275 → 0.7350 |
+| **kda_arlayer2** | **0.7204** | 0.7157 → 0.7252 |
+
+**结论（诚实，nuanced）：**
+1. 排序在**两个指标 × 全部 8 个 horizon** 上一致：arlayer < kda < sdpa。
+2. **KDA(linear) 对 SDPA(softmax) 的优势在 free-run rollout 反而放大**：1-步 3.1% → rollout **5.6%**。线性注意力在自回归想象（WM 的真实用途、也是 imagination-RL 环境）上更准 → 正面支撑"efficient O(N) WM 当长程 imagination env"主叙事。
+3. **AttnRes 的深度轴收益主要体现在 1-步表征质量**（−8.9%），free-run 下缩到 −1.5%（每个 horizon 仍为正）。这是诚实 caveat：跨层 AttnRes 提升单步表征，但不显著改变自回归发散率。
+4. rollout L1 随 h 近乎平（不爆炸，自由 roll 8 步仅 +1.3%）→ WM 想象数值稳定，适合做 RL 环境（Dreamer/TD-MPC2 rollout 不发散）。
+（caveat：free-run 绝对误差 ~0.72–0.77 介于 teacher-force 0.37–0.42 与随机 ~1.13 之间，即喂回预测后退化明显但仍含信息；2 held 任务、L1-not-success。）
