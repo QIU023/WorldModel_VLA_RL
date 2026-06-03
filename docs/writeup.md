@@ -159,3 +159,9 @@ user 定调"P1/P1.5 也转大规模、不允许 toy"。把 efficient WM 从 200-
 - **KDA(线性) 比 SDPA(softmax) 更准**，叙事翻转："线性化付质量代价"在此 setup 不成立。
 - **诚实 caveat**：① 短上下文（8 帧，效率 gap 在此小、QUALITY 优势才是惊喜）；② held 仅 2 任务/504 窗口；③ SDPA 更差**可能是过拟合**（full attention 在 85-任务小数据上容量过剩、泛化差），更大数据/上下文未必如此；④ 这是 1-步 next-latent L1（非多步 rollout/success）。
 - **方法学教训**：随机小样本 eval（n=16-32）噪声把结论翻来覆去（曾误报"AttnRes 涨/不涨"）；确定性大样本（504 窗口）才稳。日志 `results/clean_eval_3way.log`、`results/sftBig_*.log`。
+
+### 13b. Overnight 集成：验证 WM 端到端接进 imagination RL（2026-06-03 深夜）
+把 §13 验证好的 WM（KDA+跨层AttnRes，含协同训练的 encoder）端到端接进 imagination RL：重编码 libero_10（验证 encoder）→ 重训 grounded reward(AUC1.0) + BC actor(held-MSE 0.0315) 于同一 latent 空间 → imagination RL（`M2C_WM_FULL` + BC-init）→ 真 libero_10 sim eval。
+- **集成成功**：`[WM] loaded validated...` + `[actor] BC-init`，imag_reward BC 起步 0.40（vs from-scratch 0.17）。
+- **sim success（libero_10, 4任务×3ep）：BC alone 0% / BC+imagination 0%**。
+- **结论（再确认）**：瓶颈是 **policy class**（微型 reactive MLP，无语言/记忆），不是 WM —— 换上最优 WM 也救不了；LIBERO-LONG 多阶段长任务需**真 VLA**（task#12）。WM 集成是干净的 demonstration，success 受 policy 容量限。
