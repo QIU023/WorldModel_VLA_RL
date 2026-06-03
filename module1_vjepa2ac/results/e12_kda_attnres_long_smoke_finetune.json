@@ -1,0 +1,1 @@
+{"mode": "kda", "tag": "_attnres_long_smoke", "freeze": 0, "n_train": 231, "train_losses": [1.4254823923110962, 0.3007200062274933, 0.29339727759361267], "sdpa_zeroshot_mse": 0.9077776670455933, "finetuned_mse": 0.27708721719682217}

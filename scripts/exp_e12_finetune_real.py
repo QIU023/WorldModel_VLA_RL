@@ -76,7 +76,11 @@ def main():
     print(f"[{MODE}] trainable={sum(p.numel() for p in train_params)/1e6:.0f}M T={TW} steps={STEPS} "
           f"gpu={torch.cuda.get_device_name(0)}", flush=True)
 
-    data = torch.load("/home/wm-vla-rl/_ext/datasets/libero_latents.pt")
+    _paths = os.environ.get("FT_DATA", "/home/wm-vla-rl/_ext/datasets/libero_latents.pt").split(",")
+    data = []
+    for _p in _paths:
+        data += torch.load(_p.strip())                    # 多数据集拼接（Track A: libero_10 长序列 + spatial breadth）
+    data = [d for d in data if d["T"] > TW + 1]           # 只留够长的 demo（长 T 窗口）
     random.seed(0); random.shuffle(data)
     nh = max(8, int(len(data) * 0.2)); train, held = data[:-nh], data[-nh:]   # 80/20 split
     sdpa_mse = eval_mse(sdpa, held, dev, TW)
