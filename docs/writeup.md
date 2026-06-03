@@ -109,3 +109,9 @@ progress head（mean-pool latent→MLP→t/T；held progress-MSE 0.0047、monoto
 - **诚实信号（印证主线）**：H=4 短 horizon、随机 demo 起点 → actor **够不到高-r̂（近 success）态**，imag_reward 全程 ~0.05 不涨。
 - **→ 主线闭环**：grounded reward 修 hacking ✓ → AC 机器稳定 ✓ → **短 horizon 想象够不到 success（reward 诚实稀疏）→ 需长 horizon → 长想象 SDPA O(N²) 烧不起 → 必须换 O(N) KDA WM（finale）**。scaffold 故意用 SDPA、到长 H 自然撞墙，给 KDA 换入制造干净动机。**efficiency 使能长想象、长想象使能能力**——即北极星。
 - infra note：长-H 想象的 autograd 需 contiguous-mask + flash（现 math backend 为正确性，长 H 慢/吃显存）；KDA recurrent 想象是 O(1)/步，正是长想象的解。图/日志 `results/m2c_imagine_ac.{json,log}`。
+
+### 10c. WM imagination reward-fidelity 诊断 —— 诚实的 inconclusive（2026-06-03）
+动机：actor-in-loop 下 KDA 想象 imag_reward~0.5 vs SDPA~0.05（随机未训 actor），疑似 WM-exploitation。建 teacher-forced 诊断（真 demo action 开环 roll WM，比 r̂(预测) vs r̂(真) vs horizon），`exp_m2d_wm_reward_fidelity.py`。h16 |err|：SDPA 0.612 / KDA-full 0.119 / KDA⊕AttnRes 0.213。
+- **此 run 有方法学 confound，不直接下结论**：① SDPA 用 attn_mask=zeros(1,1) hack → 破坏 block-causal 训练配置（train/inference mismatch）→ SDPA 长 rollout 退化（0.612 多半 artifact）；KDA 时间混合线性递归、因果内生、不受 hack 影响 → **SDPA 与 KDA 不可比**。② KDA-full(0.119) < AttnRes(0.213) 与 P1.5 latent-MSE rollout（AttnRes 0.370 < KDA-full 0.467）**相反** → reward-error 与 latent-MSE 是不同度量（reward 经 mean-pool+sigmoid 非线性），**reward-fidelity 是 metric-dependent 噪声代理**。
+- **诚实结论**：「跨帧 AttnRes 是想象 enabler」假设**未证实**，不 spin。两个真东西保留：**(a) WM-exploitation 是真风险**（随机 actor 下 KDA 想象 reward 虚高）→ finale 必须靠标准 MBRL grounding（真 reward bootstrap value + 短 horizon + 真环境校正）压，不假设 WM 完美；**(b) KDA 因果内生、不依赖 attn_mask 处理 → rollout/想象里比 SDPA 鲁棒**（SDPA 的 zeros-mask hack 破坏其因果）——KDA 当想象 WM 的一个真实工程优势。
+- → 不追 reward-fidelity，转 finale 正题：imagination RL（KDA WM + grounding）on libero_10 长任务。日志 `results/m2d_wm_reward_fidelity.json`。
