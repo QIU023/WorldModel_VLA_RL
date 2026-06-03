@@ -1,44 +1,49 @@
-# Efficient Long-Horizon Latent World Models with Cross-Frame Block-AttnRes
+# Efficient O(N) Long-Horizon Latent World Models — Linear KDA + Cross-Layer Block-AttnRes
 
-把 **KDA 线性注意力 + 一个新的"跨帧 Block-AttnRes"时间聚合原语** 装进 Meta **V-JEPA 2-AC** 的隐空间
-世界模型，得到一个 **O(N)、长时程、近 softmax-parity** 的高效世界模型，并在 **LIBERO** 真机数据上验证。
+把 **KDA 线性注意力（时间轴）+ Kimi "Block-AttnRes"（深度/层残差轴）** 装进 Meta **V-JEPA 2-AC** 隐空间
+世界模型，得到 **O(N)、长时程** 的高效 WM，并在 **LIBERO** 真机数据上以**官方 V-JEPA2-AC 标准 recipe**（L1 + jloss/sloss rollout + WSD）微调验证。
 
-> **一句话**：不是"把现成线性注意力套到世界模型"，而是**提出"AttnRes 作为世界模型时间聚合原语"这个新结构**，
-> 证明它**专门在长时程 rollout 上赢、保持 O(N)、近 parity**。
+> **一句话**：把 softmax **O(N²)** 时间注意力换成 **O(N) KDA 线性注意力** —— 不但不亏质量，**在自回归 rollout（世界模型的真实用途）上对 softmax 的优势反而放大**；再叠一道**跨层 Block-AttnRes**（深度轴、~parameter-free）补单步表征增益。
 > 栈：frozen V-JEPA2 encoder (1B) + 改造的 305M action-conditioned predictor。硬件：2×H200。
+> ⚠️ **门面 pitch 修订中（2026-06-03）**：旧版卖的是"跨**帧** AttnRes 的 rollout 越赢越多"——该架构已废弃（与 KDA 跨帧冗余）。正确的**跨层** AttnRes 给出下面更诚实的故事，headline 框架待 owner 复核。
 
 ---
 
-## Headline 结果
+## Headline 结果（官方标准 recipe，matched 3000-iter，确定性 held-out）
 
-| 维度 | SDPA (原版, O(N²)) | **KDA⊕AttnRes (本工作, O(N))** | KDA-only (O(N)) |
+**效率（自回归 rollout @T=512，KDA vs SDPA；跨层 AttnRes ~parameter-free 故效率≈KDA）：**
+| 维度 | SDPA (O(N²)) | **KDA (O(N))** |
+|---|---|---|
+| 时间 / 显存 @T=512 | 75s / 96GB（768 OOM） | **2.9s / 10GB（→1024 不 OOM）** |
+| 相对 | — | **~26×快 / ~9.6×省显存** |
+| rollout 步成本 | 重算 growing context O(N²) | **O(1)/步（recurrent SSM state）** |
+
+**质量（held-out L1，越低越好；exp_e15/e16）：**
+| 指标 | SDPA (softmax) | KDA (linear) | **KDA+layer-AttnRes** |
 |---|---|---|---|
-| **效率** @T=512 | 75s / 96GB（768 OOM） | **3.1s / 11GB（→1024）** | 2.9s / 10GB |
-| 相对 SDPA@512 | — | **24×快 / 8.6×省显存** | 26× / 9.6× |
-| **质量** next-latent MSE (LIBERO 公平全参) | **0.1007** | **0.1031 (+2.4%)** | 0.1050 (+4.3%) |
-| **长时程 rollout 漂移** @h16 | — | **比 KDA 低 21%** | 基线 |
-| rollout 步成本 | 重算 growing context | **O(1)/步 (recurrent state)** | O(1)/步 |
+| 1-步 teacher-force, clean held (504 窗口) | 0.41648 | 0.40340 | **0.36746** |
+| free-run 自回归 rollout, mean L1 (263 窗口) | 0.7743 | 0.7311 | **0.7204** |
 
-**结论**：线性化的能力代价仅 **~2-4%**（非朴素全参对比前误读的 25%）；**跨帧 Block-AttnRes 把这点差距再砍半，
-且其优势随 rollout horizon 越长越大** —— 正是高效世界模型最需要的长时程场景。
+**结论（诚实，nuanced）：**
+1. **KDA(linear, O(N)) 在质量上 match 且略胜 SDPA(softmax)**，且**优势在 free-run rollout 上放大**（1-步 −3.1% → rollout **−5.6%**）—— 线性 WM 正是**更好的自回归想象引擎**（也是 imagination-RL 环境）。"linear 亏质量"在标准短上下文 recipe 下**不成立、反而 KDA 赢**。
+2. **跨层 Block-AttnRes 再补单步表征增益 −8.9%**（vs KDA）；但 free-run rollout 下缩到 **−1.5%**（每个 horizon 仍为正）。诚实 caveat：AttnRes 主要提升**单步表征质量**，不显著改自回归发散率。
+3. 排序 **arlayer < kda < sdpa** 在**两个指标 × 全部 8 个 horizon** 上一致，且删 ckpt 重训后**可复现**（详见 `docs/writeup.md §13/§13c`）。
 
-### 1. 效率：KDA 与 KDA⊕AttnRes 都是 O(N)
+### 1. 效率：KDA 是 O(N)，softmax O(N²)
 ![scaling](module1_vjepa2ac/results/scaling_3way.png)
 
-### 2. 质量：公平全参微调下近 parity，novel 结构补半
-![parity](module1_vjepa2ac/results/e12_parity_3way.png)
+### 2. ⭐ 质量 + rollout 保真：KDA 对 softmax 的优势随 horizon 放大，AttnRes 补单步增益
+![rollout-fidelity](module1_vjepa2ac/results/e16_rollout_fidelity_3way.png)
 
-### 3. ⭐ novel 结构的核心卖点：长时程 rollout 漂移随 horizon 越赢越多
-![rollout](module1_vjepa2ac/results/e1z_rollout_compare.png)
-
-### 4. 诚实的负结果：长上下文在 LIBERO（近 Markov 操作任务）无清晰收益
+### 3. 诚实的负结果：长上下文在 LIBERO（近 Markov 操作任务）无清晰收益
 ![ablation](module1_vjepa2ac/results/e1x_context_ablation.png)
 
 ---
 
 ## 这是什么 / 故事线
 - **KDA（Kimi Delta Attention）** = O(N) 线性注意力（递归 SSM state = 压缩历史）。接在 predictor 每个 block 的**时间轴**（`module1_vjepa2ac/kda_acblock.py: DividedKDAACBlock`，空间帧内 attn ⊕ 时间 KDA）。
-- **跨帧 Block-AttnRes（novel）** = 把 Kimi "Attention Residual"（arxiv 2603.15031）的"online-softmax 聚合"用到**帧/时间单元**上：每空间位置对帧序列做 **causal cumulative-softmax 聚合**（O(N)、streamable）。`CrossFrameAttnRes`。
+- **跨层 Block-AttnRes（Kimi arxiv 2603.15031，深度轴）** = 在 24 个 predictor block 的**层残差/深度轴**上做注意力残差：把 L 层分成 8 组，组边界用 zero-init pseudo-query 对**所有已完成组的输出**做 softmax 加权，重组"下一组输入"（~parameter-free，9K 参数）。**与 KDA 正交**（KDA=时间轴，AttnRes=深度轴）。`block_attn_res` / `attnres_ify_predictor`。
+  - ⚠️ 早期误把 AttnRes 当"跨帧时间聚合"——与 KDA 跨帧冗余、反而掉点，已废弃；正确实现是上面的**跨层**。
 - encoder（ViT-g 1B）**冻结**；只改 305M predictor 的注意力。latent 空间训练 → 连微调都便宜（对比生成派 Cosmos 3 16-64B / τ0-WM 5B 在像素空间训）。
 - 三方 ablation（KDA / KDA⊕AttnRes / SDPA）× 两轴（效率/质量）× 长时程增益 = 完整 story。
 
@@ -49,7 +54,7 @@
 
 ## 复现
 - 环境配方：`env/SETUP.md`（vjepa2 / py3.10-fla / libero 三套，含 LIBERO sim headless EGL + env 统一）。
-- 关键代码：`module1_vjepa2ac/kda_acblock.py`（KDA + CrossFrameAttnRes）、`scripts/exp_e1*`（scaling/parity/rollout 实验）、`exp_e12_finetune_real.py`（微调，FT_MODE/FT_FREEZE/USE_ATTNRES knobs）。
+- 关键代码：`module1_vjepa2ac/kda_acblock.py`（`kda_ify_predictor` + `attnres_ify_predictor` 跨层）、`scripts/exp_e14_sft_full.py`（官方标准 recipe 全参 SFT，FT_MODE/USE_ATTNRES/AR_NUM_BLOCKS knobs）、`exp_e15`（1-步确定性 held）、`exp_e16`（多步 rollout-fidelity）。
 - 详细机制讲解：`docs/writeup.md`；执行日志：`docs/PROGRESS.md`；完整方案：`docs/PLAN.md`。
 
 ## 路线图（北极星 + 三轨，2026-06-03 锁定）
@@ -59,9 +64,9 @@
 - **Finale — 汇合**：换上 **O(N) KDA WM** 推到 LIBERO-LONG 超长 horizon，证明高效 WM 使能超长任务。
 
 ## 状态
-P0 ✅ / **P1 ✅·P1.5 ✅** / **Track A ✅ 大规模化**（T=128 长序列全参微调：SDPA-full **OOM**，KDA⊕AttnRes **0.137** / KDA-full 0.139——**效率墙到训练级**，finale WM=`kda_attnres_long`）/ M2.1 ✅ grounded reward（修 hacking）/ M2.1b ✅ grounded-CEM（诚实稀疏）/ M2C ✅ imagination actor-critic（稳定）/ **finale ✅ 端到端打通**（真 sim eval）/ P3 未动。
+P0 ✅ / **P1 ✅·P1.5 ✅** / **架构定论 ✅**（官方标准 recipe matched 3000-iter 全参 SFT，85 任务：**跨层 AttnRes 0.367 < KDA 0.403 < SDPA 0.416** @1-步 clean held；free-run rollout 同序，KDA-over-SDPA 优势放大至 −5.6%；finale WM=`kda_arlayer2`，可复现 §13c）/ M2.1 ✅ grounded reward（修 hacking）/ M2.1b ✅ grounded-CEM（诚实稀疏）/ M2C ✅ imagination actor-critic（稳定，验证 WM 端到端接入）/ **finale ✅ 端到端打通**（真 sim eval）/ P3 未动 / **task#12 真 VLA 未动**。
 
 ## Finale 诚实结论
-- **效率论点（项目真贡献）成立**：长序列 T=128 下 softmax WM 连训都 **OOM**、O(N) KDA⊕AttnRes 训得动 → 高效 WM **能**当 softmax 烧不起的长程想象环境。
+- **效率论点（项目真贡献）成立**：自回归 rollout @T=512 下 softmax 75s/96GB（768 OOM），O(N) KDA 2.9s/10GB（→1024）；T=128 全参训练 SDPA 需 act-ckpt（慢）、KDA 原生训得动 → 高效 WM **能**当 softmax 烧不起的长程想象环境。
 - **全管线端到端打通**：grounded reward（修 hacking）→ imagination actor-critic（稳定）→ BC warm-start → 真 sim eval。
 - **能力（真 sim success）**：单阶段 libero_spatial **8.3%**（管线可行）；多阶段 **LIBERO-LONG 0%**——根因是 **policy class 太弱**（微型 reactive MLP + mean-pool latent、无语言/记忆），**非 WM 或训练法**。LIBERO-LONG 需真 VLA policy（OpenVLA-OFT 量级）配我们的 WM 当想象环境=下一步大工程。**不伪称"解决了 LIBERO-LONG"**。详见 `docs/writeup.md §12`。
