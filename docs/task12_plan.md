@@ -69,3 +69,17 @@
 - **主**:KDA(+AttnRes) WM 想象 RL 把 Ultra-Long success 抬过 OpenVLA-OFT 的 0% baseline。
 - **次(同等重要)**:SDPA WM 在超长 horizon 想象上 **OOM/显著更慢**,KDA(+AttnRes) 跑得起 → 坐实"O(N) WM 是超长程想象的使能器"。
 - 报告同时给 LiLo-VLA(44%)作天花板参照,不与之争 SOTA。
+
+## 8. 结果 — 想象成本(exp_m2h,核心证据,2026-06-03)
+单次 WM forward 的每步成本 vs 想象 context 长度 T(帧),B=8 想象轨迹(GRPO group 量级):
+| T(帧) | SDPA 时间/显存 | KDA | KDA+AttnRes |
+|---|---|---|---|
+| 256 | 17.3s / 32.9GB | 2.7s / 30.5GB | 2.8s / 50.9GB |
+| 512 | **67.9s / 90.1GB** | **5.3s / 58.4GB** | 5.5s / 99.4GB |
+| 768 | **OOM** | **7.9s / 86.4GB** | OOM(深度轴缓存) |
+
+**结论(坐实主命题)**:
+1. **softmax SDPA WM 跑不动超长想象**:T=512 单步要 **68 秒**、T=768 **OOM** → RL 要几千步,softmax WM = 数月/烧不起。
+2. **O(N) KDA WM 是使能器**:T=512 **5.3s(比 SDPA 快 13×)**、T=768 仍跑得动(86GB 不 OOM)→ 高效 WM 才撑得起超长程想象 RL。
+3. **诚实 nuance**:跨层 AttnRes 质量更好(已证)但**想象显存更高**(缓存所有 block 输出),T=768 也 OOM → **超长想象首选纯 KDA(最省),AttnRes 是"显存够时换质量"的变体**。这给架构选择一个清晰的工程含义。
+图:`module1_vjepa2ac/results/imagination_cost.png`。
