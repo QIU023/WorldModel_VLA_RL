@@ -37,12 +37,10 @@ LIBERO_DIR = os.environ.get("SFT_LIBERO", "/home/wm-vla-rl/_ext/datasets/LIBERO/
 
 class LIBERODataset(torch.utils.data.Dataset):
     """复刻 DROIDVideoDataset：LIBERO hdf5 → (buffer[C,T,H,W], actions[T'-1,7], states[T',7], extrinsics, indices)。"""
-    def __init__(self, libero_dir, transform, split="train", held_files=2):
+    def __init__(self, files, transform):
         self.transform = transform
         self.samples = []                                # (file, demo_key)
-        files = sorted(glob.glob(f"{libero_dir}/*.hdf5"))
-        use = files[:-held_files] if split == "train" else files[-held_files:]   # 按 task 文件留 held（unseen 任务）
-        for f in use:
+        for f in files:
             with h5py.File(f, "r") as hf:
                 for k in hf["data"].keys():
                     self.samples.append((f, k))
@@ -86,14 +84,24 @@ def main():
     transform = make_transforms(random_horizontal_flip=False, random_resize_aspect_ratio=[0.75, 1.35],
                                 random_resize_scale=[1.777, 1.777], reprob=0.0, auto_augment=False,
                                 motion_shift=False, crop_size=CROP)
-    ds = LIBERODataset(LIBERO_DIR, transform, split="train")
-    held_ds = LIBERODataset(LIBERO_DIR, transform, split="held")
+    # 大数据：train = libero_90(全) + libero_10[:8]；held = libero_10[8:]（长任务、finale 相关、unseen）
+    root = os.path.dirname(LIBERO_DIR)
+    l10 = sorted(glob.glob(f"{root}/libero_10/*.hdf5"))
+    extra = sorted(glob.glob(f"{root}/libero_90/*.hdf5")) if os.path.isdir(f"{root}/libero_90") else []
+    train_files = extra + l10[:max(1, len(l10) - 2)]
+    held_files = l10[max(1, len(l10) - 2):]
+    print(f"data: train_files={len(train_files)} (libero_90={len(extra)}+libero_10={len(l10)-2}) held_files={len(held_files)}", flush=True)
+    ds = LIBERODataset(train_files, transform)
+    held_ds = LIBERODataset(held_files, transform)
     loader = torch.utils.data.DataLoader(ds, batch_size=BATCH, shuffle=True, num_workers=4,
                                          drop_last=True, pin_memory=True, persistent_workers=True)
 
     enc, pred = vjepa2_ac_vit_giant(pretrained=True)
     if MODE == "kda":
-        kda_ify_predictor(pred, use_attnres=USE_ATTNRES)
+        kda_ify_predictor(pred, use_attnres=False)        # 纯 KDA（管帧/时间轴）
+        if USE_ATTNRES:                                   # 正确的跨层 Block-AttnRes（管深度轴，正交于 KDA）
+            from kda_acblock import attnres_ify_predictor
+            attnres_ify_predictor(pred, num_blocks=int(os.environ.get("AR_NUM_BLOCKS", "8")))
     enc = enc.to(DEV).train(); pred = pred.to(DEV).train()
     ACT_CKPT = bool(int(os.environ.get("SFT_ACT_CKPT", "0")))     # 默认关（显存够，关掉更快）
     enc.use_activation_checkpointing = ACT_CKPT; pred.use_activation_checkpointing = ACT_CKPT

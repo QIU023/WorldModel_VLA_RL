@@ -149,8 +149,71 @@ class DividedKDAACBlock(nn.Module):
 
 
 def kda_ify_predictor(pred, use_attnres=False):
-    """把 predictor 的每个 ACBlock 原地换成 DividedKDAACBlock（复用预训练权重 + fresh KDA
-    [+可选跨帧 Block-AttnRes]）。"""
+    """把 predictor 的每个 ACBlock 原地换成 DividedKDAACBlock（复用预训练权重 + fresh KDA）。
+    注意：use_attnres=True 是早期**误用**（跨帧 AttnRes，与 KDA 冗余）；正确的 AttnRes 用
+    attnres_ify_predictor（跨层）。这里默认 False。"""
     for i in range(len(pred.predictor_blocks)):
         pred.predictor_blocks[i] = DividedKDAACBlock.from_acblock(pred.predictor_blocks[i], use_attnres=use_attnres)
+    return pred
+
+
+def block_attn_res(blocks, partial, proj, norm):
+    """真 Block-AttnRes（Kimi 2603.15031）—— 跨 block(深度) 的 softmax 注意力聚合。
+    blocks: 已完成各 block 输出 list，每个 [B, Ntok, D]；partial: 当前 block [B, Ntok, D]。
+    proj: Linear(D,1,bias=False) 的 weight = 该边界的 pseudo-query（zero-init→起步均匀）。
+    """
+    V = torch.stack(blocks + [partial], dim=0)          # [N+1, B, Ntok, D]  (values = 各 block 输出)
+    K = norm(V)                                          # keys = RMSNorm(values)
+    q = proj.weight.squeeze(0)                           # [D]  pseudo-query
+    logits = torch.einsum("d,nbtd->nbt", q, K)           # [N+1, B, Ntok] over block(深度)轴
+    w = torch.softmax(logits, dim=0)
+    return torch.einsum("nbt,nbtd->btd", w, V)           # [B, Ntok, D]
+
+
+def attnres_ify_predictor(pred, num_blocks=8):
+    """正确的 Block-AttnRes：在 predictor 的 L 个 block 上、沿**深度轴**做跨层注意力残差。
+    把 L 个 block 分成 num_blocks 组（组内标准残差），**组边界**用 block_attn_res 把"下一组输入"
+    换成对所有已完成组输出的注意力加权。每个边界一个 zero-init pseudo-query + 共享 RMSNorm。
+    与 KDA（跨帧）正交。monkeypatch pred.forward。"""
+    import types
+    L = len(pred.predictor_blocks)
+    lpb = max(1, L // num_blocks)                        # layers_per_block
+    n_commit = L // lpb                                  # 提交次数
+    dim = pred.predictor_blocks[0].norm1.normalized_shape[0]
+    dev = pred.predictor_norm.weight.device if hasattr(pred.predictor_norm, "weight") else next(pred.parameters()).device
+    pred.ar_proj = nn.ModuleList([nn.Linear(dim, 1, bias=False) for _ in range(n_commit)]).to(dev)
+    for p in pred.ar_proj:
+        nn.init.zeros_(p.weight)                         # zero-init → softmax 起步均匀（稳定接入）
+    pred.ar_norm = nn.RMSNorm(dim, eps=1e-5).to(dev)
+    pred.ar_lpb = lpb
+
+    def new_forward(self, x, actions, states, extrinsics=None):
+        x = self.predictor_embed(x)
+        B, N_ctxt, D = x.size()
+        T = N_ctxt // (self.grid_height * self.grid_width)
+        s = self.state_encoder(states).unsqueeze(2)
+        a = self.action_encoder(actions).unsqueeze(2)
+        x = x.view(B, T, self.grid_height * self.grid_width, D)
+        cond = 3 if self.use_extrinsics else 2
+        if self.use_extrinsics:
+            e = self.extrinsics_encoder(extrinsics).unsqueeze(2)
+            x = torch.cat([a, s, e, x], dim=2).flatten(1, 2)
+        else:
+            x = torch.cat([a, s, x], dim=2).flatten(1, 2)
+        attn_mask = self.attn_mask[: x.size(1), : x.size(1)].to(x.device, non_blocking=True)
+        blocks, g = [], 0
+        for i, blk in enumerate(self.predictor_blocks):
+            x = blk(x, mask=None, attn_mask=attn_mask, T=T, H=self.grid_height, W=self.grid_width, action_tokens=cond)
+            if (i + 1) % self.ar_lpb == 0:               # 组边界：提交 + 跨层 AttnRes
+                blocks.append(x)
+                if i < len(self.predictor_blocks) - 1:
+                    x = block_attn_res(blocks[:-1], blocks[-1], self.ar_proj[g], self.ar_norm)
+                    g += 1
+        x = x.view(B, T, cond + self.grid_height * self.grid_width, D)
+        x = x[:, :, cond:, :].flatten(1, 2)
+        x = self.predictor_norm(x)
+        x = self.predictor_proj(x)
+        return x
+
+    pred.forward = types.MethodType(new_forward, pred)
     return pred
