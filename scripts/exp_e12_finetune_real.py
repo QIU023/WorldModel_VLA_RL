@@ -111,9 +111,9 @@ def main():
             l.backward(); loss_acc += l.item()
         opt.step()
         losses.append(loss_acc)
-        if step % 50 == 0 or step == STEPS - 1:
+        if step % 20 == 0 or step == STEPS - 1:
             print(f"step {step:4d} loss {loss_acc:.5f}", flush=True)
-        if step and step % 200 == 0:
+        if step and step % 50 == 0:
             student.eval(); m = eval_mse(student, held, dev, TW); student.train()
             print(f"  [eval@{step}] KDA held-out MSE = {m:.5f}", flush=True)
         if step and step % CKPT_EVERY == 0:              # 周期存 resume（防 OOM/崩丢进度）
