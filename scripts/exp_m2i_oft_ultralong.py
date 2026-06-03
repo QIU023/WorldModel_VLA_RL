@@ -6,6 +6,7 @@ import os, sys, json, numpy as np, torch
 from collections import deque
 os.environ.setdefault("MUJOCO_GL", "egl")
 os.environ.setdefault("HF_HOME", "/home/.hf_home")
+os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")  # protobuf 4.x + tf2.15 兼容
 sys.path.insert(0, "/home/wm-vla-rl/_ext/LIBERO")
 sys.path.insert(0, "/home/wm-vla-rl/_ext/openvla-oft")
 
