@@ -129,6 +129,12 @@ user 定调"P1/P1.5 也转大规模、不允许 toy"。把 efficient WM 从 200-
 - **AttnRes ≥ full**（0.1375<0.1389，且 eval@50→100 gap 扩大 0.0007→0.0015）—— 与 P1.5"AttnRes 在更难/更长场景增益更大"一致。**finale WM = `kda_attnres_long`**。
 - **infra 副产品（Module 4）**：① ckpt/resume（防长训 OOM 丢进度）；② **KDA fla 内核 T=128 micro-batch 上限 ~8**（bs16/48→Triton grid 溢出），用**梯度累积**拿 effective batch；③ act-ckpt 在重前向上 2× 重算→病态慢（12min/步），改 **bs1-无ckpt 本就填满 134GB VRAM + 快**。日志 `results/trackA_kda_{attnres,full}_long.log`、`trackA_sdpa_long.log`(OOM)。
 
+### 11b. 公平 SDPA baseline（修正）+ "toy 微调测不了新架构"的方法论转向（2026-06-03）
+**修正前述失误**：之前让 SDPA-full 在 T=128 OOM 就不比 = 逃避。**开 activation checkpointing（"降 config"），SDPA-full 在 T=128 训得动（19GB，之前没开 act-ckpt 才 137GB OOM）**。
+- **公平 toy-scale（150步）三方质量**：SDPA-full **0.13079**（上限）/ KDA⊕AttnRes-v1 0.13748 / KDA-full 0.13886 → **线性化付 ~5-6% 质量代价**（诚实数）。**效率论点（Track A SDPA-OOM 是训练级、KDA 训得动）+ 质量论点（KDA 付 ~5%）现在都有数。**
+- **AttnRes 涨点失败的根因（关键方法论）**：试了 v2-AttnRes（multi-head+value+可学温度），toy-scale 下 ≈ KDA-full（eval@100 0.1416），**没涨**。诊断：**AttnRes 是全新架构原语、zero-init 螺栓在"没有它也已预训练完备"的 backbone 上、只训 150 步** → 结构上长不出互补能力（新组件要在**预训练/大规模训练**里让网络学会用它、协同适配）。**当前微调能公平测"效率/适配"，但测不了"新架构的质量价值"。**
+- **转向 → 大规模 SFT 公平架构对比**：T=96、**4000 步（27× toy）**、KDA-full vs KDA⊕AttnRes-v2 vs SDPA-ref **同 scale 充分训练** → 才能公平看 AttnRes 是否真涨点 + 是否逼近 SDPA 上限。下一级（若 SFT 仍不分）= **predictor 从随机初始化预训练**（带架构、大量 latent；305M 中等规模可负担；encoder 全 V-JEPA 预训练 2 卡不可行，诚实标注）。日志 `results/scale_kda_{full,attnres}.log`。
+
 ## 12. Finale — imagination RL on LIBERO-LONG：诚实的完整结论（2026-06-03）
 把 finale WM(`kda_attnres_long`)+ libero_10 grounded reward 接进 imagination actor-critic（H=8）训 actor，再在**真 libero_10 sim** 测 success-rate（`exp_m2c`/`exp_m2e`）。
 | 测法 | 任务 | 阶段 | success-rate |

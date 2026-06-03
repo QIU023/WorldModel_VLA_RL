@@ -65,23 +65,31 @@ class CrossFrameAttnRes(nn.Module):
     novel 点：把 AttnRes 当世界模型的"时间聚合原语"，与 KDA 递归互补。
     """
 
-    def __init__(self, dim, norm_eps=1e-5):
+    def __init__(self, dim, norm_eps=1e-5, n_heads=None):
         super().__init__()
+        import os
+        n_heads = n_heads or int(os.environ.get("ATTNRES_HEADS", "4"))
+        while dim % n_heads:                              # 保证整除
+            n_heads -= 1
+        self.n_heads, self.hd = n_heads, dim // n_heads
         self.norm = nn.RMSNorm(dim, eps=norm_eps)
-        self.proj = nn.Linear(dim, 1, bias=False)        # pseudo-query w_l；zero-init→初始均匀
+        self.k = nn.Linear(dim, n_heads, bias=False)     # multi-head per-frame gate logit（v1 是 1）
+        self.v = nn.Linear(dim, dim, bias=False)         # value 投影（v1 直接聚合 raw x）
+        self.tau = nn.Parameter(torch.zeros(n_heads))    # per-head 可学温度（log scale）→ 尖锐帧选择
         self.o_proj = nn.Linear(dim, dim, bias=False)
-        nn.init.zeros_(self.proj.weight)
         nn.init.zeros_(self.o_proj.weight)               # 起步为 no-op，稳定接入
 
     def forward(self, x):                                 # [N, T, D]
-        # causal softmax-weighted 帧聚合 == cumulative-softmax（O(N) streamable）。
-        # 与 O(T²) causal-mask 形数学等价（已训 ckpt 直接适用）。
-        logit = self.proj(self.norm(x)).squeeze(-1)       # [N, T] 每帧标量 gate
-        logit = logit - logit.max(dim=1, keepdim=True).values   # per-pos 常数移位（稳定；常数在 softmax 中抵消，不破因果）
-        e = logit.exp().unsqueeze(-1)                     # [N, T, 1] ≤1
-        num = torch.cumsum(e * x.float(), dim=1)          # [N, T, D]  O(N)
-        den = torch.cumsum(e, dim=1).clamp_min(1e-6)      # [N, T, 1]
-        agg = (num / den).to(x.dtype)
+        # multi-head content-weighted causal online-softmax 聚合（v2，O(N) streamable）。
+        N, T, D = x.shape; Hh, hd = self.n_heads, self.hd
+        xn = self.norm(x)
+        logit = self.k(xn) * self.tau.exp()               # [N, T, Hh] 温度缩放
+        logit = logit - logit.max(dim=1, keepdim=True).values   # per-pos 常数移位（softmax 不变、不破因果）
+        e = logit.exp().float()                           # [N, T, Hh]
+        v = self.v(xn).view(N, T, Hh, hd).float()         # [N, T, Hh, hd]
+        num = torch.cumsum(e.unsqueeze(-1) * v, dim=1)    # [N, T, Hh, hd]  O(N)
+        den = torch.cumsum(e, dim=1).clamp_min(1e-6).unsqueeze(-1)   # [N, T, Hh, 1]
+        agg = (num / den).reshape(N, T, D).to(x.dtype)
         return self.o_proj(agg)
 
 
