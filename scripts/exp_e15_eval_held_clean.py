@@ -15,7 +15,7 @@ DEV = "cuda"; CKPT = "/home/wm-vla-rl/_ext/ckpts"
 FPC = 8; FSTP = 5
 ROOT = "/home/wm-vla-rl/_ext/datasets/LIBERO"
 # (ckpt 文件, kda?, attnres?)
-RUNS = [("kda_full_big_sftfull.pt", 1, 0), ("kda_arlayer_big_sftfull.pt", 1, 1), ("sdpa_big_sftfull.pt", 0, 0)]
+RUNS = [("sdpa_sdpa_big_sftfull.pt", 0, 0), ("kda_full_big_sftfull.pt", 1, 0), ("kda_arlayer_big_sftfull.pt", 1, 1)]
 
 
 def poses_to_diffs(p):

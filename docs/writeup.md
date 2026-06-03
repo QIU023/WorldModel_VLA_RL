@@ -146,3 +146,16 @@ user 定调"P1/P1.5 也转大规模、不允许 toy"。把 efficient WM 从 200-
 - **诚实根因 = policy class，不是训练法/WM**：actor 是**微型 reactive MLP + mean-pool latent、无语言条件、无记忆**。LIBERO-LONG 是多阶段（"把两个X都放进篮子"/"开炉灶 AND 放壶"），需要知道"在哪个子目标"（记忆/语言）+ 长程规划 + 精细操作——单帧 mean-pool latent → 同一个 MLP（跨任务共享、不知道在做哪个任务）做不到。spatial 单阶段非零 = **管线在 tractable 任务上可行**，印证是**任务难度/policy 容量**而非 WM 或 imagination 机制。
 - **效率论点（项目真贡献）成立且未受影响**：Track A 证明长序列下 **softmax WM 连训都 OOM、O(N) KDA⊕AttnRes 训得动** → 高效 WM **能**当 softmax 烧不起的长程想象环境。imagination-RL 全管线（grounded reward→稳定 actor-critic→真 sim eval）端到端打通。
 - **诚实 scope**：在 LIBERO-LONG 拿到 success **需要真 VLA policy**（OpenVLA-OFT 量级、语言条件、全 token），用我们的高效 WM 当想象/reward 环境——即 SimpleVLA-RL 量级的下一步大工程，超出当前 2-GPU/时限。**不伪称"解决了 LIBERO-LONG"**。日志 `results/finale_eval{,_bc,_bc_spatial}.log`。
+
+## 13. ★ 标准 recipe 下的定论 + AttnRes 用对轴（2026-06-03 深夜，supersedes §8/§11 的 toy-MSE 数）
+**两个关键修正**（user 纠正 + 我修方法学）：① **训练 setup 改用官方** `app/vjepa_droid/train.py` recipe（L1、jloss+sloss 自回归 rollout、AdamW+WSD、bf16、on-the-fly 编码 + 训 encoder），之前 exp_e12 的 MSE/单步/常数lr 是我乱造的；② **AttnRes 用对轴**——它是**跨层(深度)** softmax 注意力残差（Kimi §5：用 per-layer pseudo-query 替代固定残差累加），不是我之前误用的跨帧（跨帧和 KDA 同轴冗余→伤）。正确版 `kda_acblock.attnres_ify_predictor`（24 block 分 8 组、组边界 block_attn_res、~9K 参数 parameter-free、zero-init 起步近 identity→稳）。
+**大数据全标准 SFT**（85 LIBERO 任务、4250 demos、FPC=8/fps4、训 enc+pred、batch8 填满显存）+ **确定性 clean held-out**（2 held libero_10 任务的 504 不重叠窗口，修掉随机小样本 eval 的噪声）：
+| WM | clean held-out next-latent L1 | cost |
+|---|---|---|
+| **KDA ⊕ 跨层AttnRes** | **0.36430** 🥇 | O(N) |
+| KDA-full | 0.39915 | O(N) |
+| SDPA-full（softmax） | 0.42106 | O(N²) |
+- **跨层 AttnRes 比纯 KDA 好 8.7%**（~9K 参数、parameter-free 的残差流重路由）—— 用对轴（深度，正交于 KDA 的帧轴）才涨点。
+- **KDA(线性) 比 SDPA(softmax) 更准**，叙事翻转："线性化付质量代价"在此 setup 不成立。
+- **诚实 caveat**：① 短上下文（8 帧，效率 gap 在此小、QUALITY 优势才是惊喜）；② held 仅 2 任务/504 窗口；③ SDPA 更差**可能是过拟合**（full attention 在 85-任务小数据上容量过剩、泛化差），更大数据/上下文未必如此；④ 这是 1-步 next-latent L1（非多步 rollout/success）。
+- **方法学教训**：随机小样本 eval（n=16-32）噪声把结论翻来覆去（曾误报"AttnRes 涨/不涨"）；确定性大样本（504 窗口）才稳。日志 `results/clean_eval_3way.log`、`results/sftBig_*.log`。
