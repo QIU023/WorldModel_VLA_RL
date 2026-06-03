@@ -95,7 +95,8 @@ def main():
     if MODE == "kda":
         kda_ify_predictor(pred, use_attnres=USE_ATTNRES)
     enc = enc.to(DEV).train(); pred = pred.to(DEV).train()
-    enc.use_activation_checkpointing = True; pred.use_activation_checkpointing = True   # 省显存
+    ACT_CKPT = bool(int(os.environ.get("SFT_ACT_CKPT", "0")))     # 默认关（显存够，关掉更快）
+    enc.use_activation_checkpointing = ACT_CKPT; pred.use_activation_checkpointing = ACT_CKPT
     target_encoder = copy.deepcopy(enc).to(DEV).eval()                                  # 官方：frozen copy（无 EMA 更新）
     for p in target_encoder.parameters(): p.requires_grad_(False)
     tok = pred.grid_height * pred.grid_width
