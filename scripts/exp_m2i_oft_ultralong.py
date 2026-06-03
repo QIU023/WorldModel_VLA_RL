@@ -32,6 +32,8 @@ from libero.libero.envs import OffScreenRenderEnv
 from experiments.robot.libero.run_libero_eval import GenerateConfig, initialize_model, prepare_observation, process_action
 from experiments.robot.libero.libero_utils import get_libero_dummy_action
 from experiments.robot.robot_utils import get_action, get_image_resize_size
+sys.path.insert(0, "/home/wm-vla-rl/scripts")
+from ultralong_reward import subgoal_progress
 
 BENCH = os.environ.get("EVAL_BENCH", "ultra_long")
 NEP = int(os.environ.get("EVAL_EP", "5"))
@@ -63,14 +65,14 @@ def main():
         print(f"  [task{ti}] creating env...", flush=True)
         env = OffScreenRenderEnv(bddl_file_name=bddl, camera_heights=256, camera_widths=256)
         env.seed(0)
-        succ = 0
+        succ = 0; prog_best = []; _, tot_sg = subgoal_progress(env)
         for ep in range(NEP):
             env.reset()
             obs = env.set_init_state(init_states[ep % len(init_states)])
             for _ in range(cfg.num_steps_wait):
                 obs, _, _, _ = env.step(get_libero_dummy_action(cfg.model_family))
             q = deque(maxlen=cfg.num_open_loop_steps)
-            ok = False
+            ok = False; best = 0
             for t in range(HMAX):
                 observation, _ = prepare_observation(obs, resize_size)
                 if len(q) == 0:
@@ -80,14 +82,17 @@ def main():
                     q.extend(acts)
                 action = process_action(q.popleft(), cfg.model_family)
                 obs, _, done, _ = env.step(action.tolist())
-                if env.check_success(): ok = True; break
+                sat, _ = subgoal_progress(env); best = max(best, sat)   # OFT 能走多远（部分子目标）
+                if env.check_success(): ok = True; best = tot_sg; break
                 if done: break
-            succ += int(ok)
-            print(f"    task{ti} ep{ep}: {'SUCCESS' if ok else 'fail'}", flush=True)
+            succ += int(ok); prog_best.append(best)
+            print(f"    task{ti} ep{ep}: {'SUCCESS' if ok else 'fail'} | subgoals {best}/{tot_sg}", flush=True)
         env.close()
         sr = succ / NEP; results[f"task{ti}"] = sr
-        print(f"  task{ti} {task.name[:46]:46s} success={sr:.2f} ({succ}/{NEP})", flush=True)
-    overall = float(np.mean(list(results.values())))
+        mp = float(np.mean(prog_best))
+        results[f"task{ti}_subgoal_mean"] = mp; results[f"task{ti}_subgoal_tot"] = tot_sg
+        print(f"  task{ti} {task.name[:42]:42s} success={sr:.2f} | mean_subgoals {mp:.1f}/{tot_sg}", flush=True)
+    overall = float(np.mean([results[f"task{ti}"] for ti in range(n)]))   # 仅 success（不含 subgoal_mean/tot）
     json.dump(dict(overall=overall, bench=BENCH, ep=NEP, ckpt=CKPT_HF, **results), open(f"{RES}/oft_ultralong.json", "w"))
     print(f"OFT_ULTRALONG_DONE overall={overall:.3f} ({BENCH}, {NEP}ep, {n}tasks)", flush=True)
 

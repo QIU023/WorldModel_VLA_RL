@@ -1,1 +1,15 @@
-{"overall": 0.0, "bench": "ultra_long", "ep": 1, "ckpt": "moojink/openvla-7b-oft-finetuned-libero-10", "task0": 0.0, "task1": 0.0, "task2": 0.0}
+{
+ "overall": 0.0,
+ "bench": "ultra_long",
+ "ep": 3,
+ "ckpt": "moojink/openvla-7b-oft-finetuned-libero-10",
+ "task0": 0.0,
+ "task0_subgoal_mean": 0.3333333333333333,
+ "task0_subgoal_tot": 5,
+ "task1": 0.0,
+ "task1_subgoal_mean": 0.0,
+ "task1_subgoal_tot": 8,
+ "task2": 0.0,
+ "task2_subgoal_mean": 1.0,
+ "task2_subgoal_tot": 6
+}
