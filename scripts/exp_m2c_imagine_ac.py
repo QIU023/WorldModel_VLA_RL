@@ -23,6 +23,7 @@ sys.path.insert(0, "/home/wm-vla-rl/scripts")
 from hubconf import vjepa2_ac_vit_giant
 from rollout import step_predictor
 from utils.mpc_utils import compute_new_pose
+from kda_acblock import kda_ify_predictor
 
 
 class RewardModel(nn.Module):                              # 与 exp_m2a 同构（内联避免拖入 libero）
@@ -82,6 +83,8 @@ def lambda_return(rewards, values, gamma, lam):
 
 def main():
     enc, pred = vjepa2_ac_vit_giant(pretrained=True)
+    if int(os.environ.get("M2C_KDA", "0")):                # finale：换 O(N) KDA WM（chunk 路径可微，长想象用）
+        kda_ify_predictor(pred, use_attnres=bool(int(os.environ.get("M2C_ATTNRES", "0"))))
     pred.load_state_dict(torch.load(f"{CKPT}/{WM}", map_location="cpu"))
     enc = enc.to(DEV).eval(); pred = pred.to(DEV).eval()
     for p in list(enc.parameters()) + list(pred.parameters()): p.requires_grad_(False)
