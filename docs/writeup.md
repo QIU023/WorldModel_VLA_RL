@@ -128,3 +128,15 @@ user 定调"P1/P1.5 也转大规模、不允许 toy"。把 efficient WM 从 200-
 - **效率墙在训练级（比 P1 forward-scaling 更进一步）**：长序列 T=128 下 **softmax WM 连微调都 OOM**（O(N²) 注意力 33k×33k），**O(N) KDA 变体训得动**且 held-out 0.137（6.5× 优于 SDPA 零样本）。
 - **AttnRes ≥ full**（0.1375<0.1389，且 eval@50→100 gap 扩大 0.0007→0.0015）—— 与 P1.5"AttnRes 在更难/更长场景增益更大"一致。**finale WM = `kda_attnres_long`**。
 - **infra 副产品（Module 4）**：① ckpt/resume（防长训 OOM 丢进度）；② **KDA fla 内核 T=128 micro-batch 上限 ~8**（bs16/48→Triton grid 溢出），用**梯度累积**拿 effective batch；③ act-ckpt 在重前向上 2× 重算→病态慢（12min/步），改 **bs1-无ckpt 本就填满 134GB VRAM + 快**。日志 `results/trackA_kda_{attnres,full}_long.log`、`trackA_sdpa_long.log`(OOM)。
+
+## 12. Finale — imagination RL on LIBERO-LONG：诚实的完整结论（2026-06-03）
+把 finale WM(`kda_attnres_long`)+ libero_10 grounded reward 接进 imagination actor-critic（H=8）训 actor，再在**真 libero_10 sim** 测 success-rate（`exp_m2c`/`exp_m2e`）。
+| 测法 | 任务 | 阶段 | success-rate |
+|---|---|---|---|
+| imagination-RL actor（from scratch） | libero_10 | 多阶段长 | **0.00** (0/9) |
+| BC warm-start actor | libero_10 | 多阶段长 | **0.00** (0/12) |
+| BC warm-start actor | libero_spatial | **单阶段** | **8.3%** (1/12，task2 33%) |
+- **imag_reward 没起来**（0.17→0.20）+ from-scratch 0% → 加 **BC warm-start**（VLA-RL 标准从 BC 起步；`exp_m2f`，held-MSE 0.051）。BC 在 LIBERO-LONG 仍 0%，但**在更易的单阶段 spatial 拿到非零 8.3%**。
+- **诚实根因 = policy class，不是训练法/WM**：actor 是**微型 reactive MLP + mean-pool latent、无语言条件、无记忆**。LIBERO-LONG 是多阶段（"把两个X都放进篮子"/"开炉灶 AND 放壶"），需要知道"在哪个子目标"（记忆/语言）+ 长程规划 + 精细操作——单帧 mean-pool latent → 同一个 MLP（跨任务共享、不知道在做哪个任务）做不到。spatial 单阶段非零 = **管线在 tractable 任务上可行**，印证是**任务难度/policy 容量**而非 WM 或 imagination 机制。
+- **效率论点（项目真贡献）成立且未受影响**：Track A 证明长序列下 **softmax WM 连训都 OOM、O(N) KDA⊕AttnRes 训得动** → 高效 WM **能**当 softmax 烧不起的长程想象环境。imagination-RL 全管线（grounded reward→稳定 actor-critic→真 sim eval）端到端打通。
+- **诚实 scope**：在 LIBERO-LONG 拿到 success **需要真 VLA policy**（OpenVLA-OFT 量级、语言条件、全 token），用我们的高效 WM 当想象/reward 环境——即 SimpleVLA-RL 量级的下一步大工程，超出当前 2-GPU/时限。**不伪称"解决了 LIBERO-LONG"**。日志 `results/finale_eval{,_bc,_bc_spatial}.log`。

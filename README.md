@@ -59,4 +59,9 @@
 - **Finale — 汇合**：换上 **O(N) KDA WM** 推到 LIBERO-LONG 超长 horizon，证明高效 WM 使能超长任务。
 
 ## 状态
-P0 ✅ / **P1 ✅·P1.5 ✅** / **Track A ✅ 大规模化**（T=128 长序列全参微调：SDPA-full **OOM**，KDA⊕AttnRes **0.137** / KDA-full 0.139——**效率墙到训练级**，finale WM=`kda_attnres_long`）/ M2.1 ✅ grounded reward（修 hacking）/ M2.1b ✅ grounded-CEM（诚实稀疏）/ M2C ✅ imagination actor-critic scaffold（稳定）/ **finale 🔨 imagination RL on libero_10** / P3 未动。
+P0 ✅ / **P1 ✅·P1.5 ✅** / **Track A ✅ 大规模化**（T=128 长序列全参微调：SDPA-full **OOM**，KDA⊕AttnRes **0.137** / KDA-full 0.139——**效率墙到训练级**，finale WM=`kda_attnres_long`）/ M2.1 ✅ grounded reward（修 hacking）/ M2.1b ✅ grounded-CEM（诚实稀疏）/ M2C ✅ imagination actor-critic（稳定）/ **finale ✅ 端到端打通**（真 sim eval）/ P3 未动。
+
+## Finale 诚实结论
+- **效率论点（项目真贡献）成立**：长序列 T=128 下 softmax WM 连训都 **OOM**、O(N) KDA⊕AttnRes 训得动 → 高效 WM **能**当 softmax 烧不起的长程想象环境。
+- **全管线端到端打通**：grounded reward（修 hacking）→ imagination actor-critic（稳定）→ BC warm-start → 真 sim eval。
+- **能力（真 sim success）**：单阶段 libero_spatial **8.3%**（管线可行）；多阶段 **LIBERO-LONG 0%**——根因是 **policy class 太弱**（微型 reactive MLP + mean-pool latent、无语言/记忆），**非 WM 或训练法**。LIBERO-LONG 需真 VLA policy（OpenVLA-OFT 量级）配我们的 WM 当想象环境=下一步大工程。**不伪称"解决了 LIBERO-LONG"**。详见 `docs/writeup.md §12`。
