@@ -112,6 +112,9 @@ def main():
     for p in reward.parameters(): p.requires_grad_(False)
 
     actor = Actor(dim).to(DEV); critic = Critic(dim).to(DEV)
+    _ai = os.environ.get("M2C_ACTOR_INIT", "")            # BC warm-start（from-scratch imagination RL 无望）
+    if _ai:
+        actor.load_state_dict(torch.load(f"{CKPT}/{_ai}", map_location="cpu")["actor"]); print(f"[actor] BC-init {_ai}", flush=True)
     critic_tgt = Critic(dim).to(DEV); critic_tgt.load_state_dict(critic.state_dict())
     for p in critic_tgt.parameters(): p.requires_grad_(False)
     TAU = float(os.environ.get("M2C_TAU", "0.02"))

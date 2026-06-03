@@ -64,6 +64,9 @@ def auc(pos, neg):                                         # Mann-Whitney AUC = 
 
 def main():
     enc, _ = vjepa2_ac_vit_giant(pretrained=True); torch.cuda.empty_cache()
+    _wm = os.environ.get("M2A_WM_ENC", "")                # 验证 WM 的训练 encoder（与重编码 latent 一致）
+    if _wm:
+        enc.load_state_dict(torch.load(_wm, map_location="cpu")["encoder"]); print(f"[enc] {_wm}", flush=True)
     enc = enc.to(DEV).eval()
     for p in enc.parameters(): p.requires_grad_(False)
     dim = enc.embed_dim if hasattr(enc, "embed_dim") else 1408

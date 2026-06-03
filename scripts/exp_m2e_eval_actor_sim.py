@@ -33,7 +33,11 @@ class Actor(nn.Module):                                    # 复刻 exp_m2c 的 
 
 
 def main():
-    enc, _ = vjepa2_ac_vit_giant(pretrained=True); enc = enc.to(DEV).eval()
+    enc, _ = vjepa2_ac_vit_giant(pretrained=True)
+    _wm = os.environ.get("M2E_WM_ENC", "")               # 验证 WM 的训练 encoder（与 actor 训练空间一致）
+    if _wm:
+        enc.load_state_dict(torch.load(_wm, map_location="cpu")["encoder"]); print(f"[enc] {_wm}", flush=True)
+    enc = enc.to(DEV).eval()
     for p in enc.parameters(): p.requires_grad_(False)
     dim = enc.embed_dim if hasattr(enc, "embed_dim") else 1408
     actor = Actor(dim).to(DEV).eval()
