@@ -86,8 +86,16 @@ def main():
     sdpa_mse = eval_mse(sdpa, held, dev, TW)
     print(f"[parity baseline] SDPA-pretrained held-out next-latent MSE = {sdpa_mse:.5f}", flush=True)
 
-    student.train(); losses = []
-    for step in range(STEPS):
+    CKPT_EVERY = int(os.environ.get("FT_CKPT_EVERY", "200"))
+    RESUME = f"/home/wm-vla-rl/_ext/ckpts/{MODE}{TAG}_resume.pt"
+    start_step, losses = 0, []
+    if os.path.exists(RESUME):                            # resume：中途崩/OOM 可续训
+        _ck = torch.load(RESUME, map_location="cpu")
+        student.load_state_dict(_ck["model"]); opt.load_state_dict(_ck["opt"])
+        start_step, losses = _ck["step"] + 1, _ck.get("losses", [])
+        print(f"[resume] {RESUME} @ step {start_step}", flush=True)
+    student.train()
+    for step in range(start_step, STEPS):
         if os.path.exists(DISK_STOP):
             print("DISK_STOP -> stop", flush=True); break
         x, a, s, tgt = sample_window(train, dev, TW)
@@ -100,6 +108,9 @@ def main():
         if step and step % 200 == 0:
             student.eval(); m = eval_mse(student, held, dev, TW); student.train()
             print(f"  [eval@{step}] KDA held-out MSE = {m:.5f}", flush=True)
+        if step and step % CKPT_EVERY == 0:              # 周期存 resume（防 OOM/崩丢进度）
+            torch.save(dict(model=student.state_dict(), opt=opt.state_dict(),
+                            step=step, losses=losses), RESUME)
 
     student.eval()
     ft_mse = eval_mse(student, held, dev, TW)
