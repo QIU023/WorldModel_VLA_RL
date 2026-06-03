@@ -45,8 +45,11 @@ STEPS = int(os.environ.get("M2C_STEPS", "20"))
 GAMMA = float(os.environ.get("M2C_GAMMA", "0.98"))
 LAM = float(os.environ.get("M2C_LAMBDA", "0.95"))
 MAXN = float(os.environ.get("ACT_MAXNORM", "1.0"))
-WM = os.environ.get("M2C_WM", "sdpa_full_predictor_libero.pt")   # scaffold=标准 SDPA WM
+WM = os.environ.get("M2C_WM", "sdpa_full_predictor_libero.pt")   # scaffold=SDPA；finale=kda_attnres_long
 ENT = float(os.environ.get("M2C_ENT", "0.001"))
+M2C_DATA = os.environ.get("M2C_DATA", "/home/wm-vla-rl/_ext/datasets/libero_latents.pt")  # finale=libero_10
+M2C_REWARD = os.environ.get("M2C_REWARD", "reward_model.pt")     # finale=reward_model_libero10.pt
+M2C_OUT = os.environ.get("M2C_OUT", "imagine_ac.pt")
 
 
 class Actor(nn.Module):
@@ -95,7 +98,7 @@ def main():
     dim = enc.embed_dim if hasattr(enc, "embed_dim") else 1408
 
     reward = RewardModel(dim).to(DEV).eval()
-    reward.load_state_dict(torch.load(f"{CKPT}/reward_model.pt", map_location="cpu"))
+    reward.load_state_dict(torch.load(f"{CKPT}/{M2C_REWARD}", map_location="cpu"))
     for p in reward.parameters(): p.requires_grad_(False)
 
     actor = Actor(dim).to(DEV); critic = Critic(dim).to(DEV)
@@ -104,7 +107,7 @@ def main():
     TAU = float(os.environ.get("M2C_TAU", "0.02"))
     opt = torch.optim.AdamW(list(actor.parameters()) + list(critic.parameters()), lr=3e-4)
 
-    data = torch.load("/home/wm-vla-rl/_ext/datasets/libero_latents.pt")
+    data = torch.load(M2C_DATA)
     print(f"M2C imagine actor-critic | WM={WM} H={H} B={B} steps={STEPS} γ={GAMMA} λ={LAM} | demos={len(data)}", flush=True)
 
     def mp(frame):                                         # [B,1,tok,dim] -> [B,dim] meanpool
@@ -131,7 +134,7 @@ def main():
             new_pose = compute_new_pose(pose_traj[:, -1:], a_t.detach()).to(pose_traj.device)
             pose_traj = torch.cat([pose_traj, new_pose], 1)                  # pose 仅作条件，actor 梯度走 action→latent
             zk = nxt[:, 0].mean(1)                                  # [B,dim]
-            rewards.append(reward(zk)); zs.append(zk)
+            rewards.append(reward(zk).squeeze(-1)); zs.append(zk)   # [B]（之前 [B,1]，H==B 时掩盖了 bug）
         rewards = torch.stack(rewards)                             # [H,B]（actor 梯度经可微 WM 传入）
         with torch.no_grad():                                      # target critic bootstrap（detached → 抗发散）
             tgt_values = torch.stack([critic_tgt(z) for z in zs])  # [H+1,B]
@@ -153,7 +156,7 @@ def main():
                   f"critic_loss={critic_loss.item():.4f} actor_loss={actor_loss.item():.3f}", flush=True)
 
     json.dump(hist, open(f"{RES}/m2c_imagine_ac.json", "w"))
-    torch.save(dict(actor=actor.state_dict(), critic=critic.state_dict()), f"{CKPT}/imagine_ac.pt")
+    torch.save(dict(actor=actor.state_dict(), critic=critic.state_dict()), f"{CKPT}/{M2C_OUT}")
     r0 = np.mean([h["imag_reward"] for h in hist[:3]]); r1 = np.mean([h["imag_reward"] for h in hist[-3:]])
     print(f"M2C_DONE imag_reward(r̂): {r0:.3f}->{r1:.3f}  (actor 是否在想象里把 grounded reward 拉高)", flush=True)
 
