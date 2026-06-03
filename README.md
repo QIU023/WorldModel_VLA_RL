@@ -64,9 +64,16 @@
 - **Finale — 汇合**：换上 **O(N) KDA WM** 推到 LIBERO-LONG 超长 horizon，证明高效 WM 使能超长任务。
 
 ## 状态
-P0 ✅ / **P1 ✅·P1.5 ✅** / **架构定论 ✅·严格泛化复核 ✅**（官方标准 recipe matched 3000-iter 全参 SFT；最严格：libero_10 **全 10 长任务完全 held-out**：**跨层 AttnRes 0.370 < KDA 0.413 < SDPA 0.416** @1-步 clean held(3197窗口)；free-run rollout 同序，AttnRes −10.4%/KDA-over-SDPA rollout −4.5%；finale WM=`kda_arlayerH10`，2-held 与 10-held 一致、可复现 §13d）/ M2.1 ✅ grounded reward（修 hacking）/ M2.1b ✅ grounded-CEM（诚实稀疏）/ M2C ✅ imagination actor-critic（稳定，验证 WM 端到端接入）/ **finale ✅ 端到端打通**（真 sim eval，libero_10 success 0%=policy-class 限）/ P3 未动 / **task#12 真 VLA 未动**。
+P0 ✅ / **P1 ✅·P1.5 ✅** / **架构定论 ✅·严格泛化复核 ✅**（官方标准 recipe matched 3000-iter 全参 SFT；最严格：libero_10 **全 10 长任务完全 held-out**：**跨层 AttnRes 0.370 < KDA 0.413 < SDPA 0.416** @1-步 clean held(3197窗口)；free-run rollout 同序，AttnRes −10.4%/KDA-over-SDPA rollout −4.5%；finale WM=`kda_arlayerH10`，2-held 与 10-held 一致、可复现 §13d）/ M2.1 ✅ grounded reward（修 hacking）/ M2.1b ✅ grounded-CEM（诚实稀疏）/ M2C ✅ imagination actor-critic（稳定，验证 WM 端到端接入）/ **finale ✅ 端到端打通**（真 sim eval）/ P3 未动 / **task#12 真 VLA × Ultra-Long 🔄 进行中**（战场换到非饱和的 LiLo-VLA Ultra-Long；OFT env 建好、baseline 0%；想象成本/RL 墙双证；蒸馏+想象RL 在建）。
 
 ## Finale 诚实结论
 - **效率论点（项目真贡献）成立**：自回归 rollout @T=512 下 softmax 75s/96GB（768 OOM），O(N) KDA 2.9s/10GB（→1024）；T=128 全参训练 SDPA 需 act-ckpt（慢）、KDA 原生训得动 → 高效 WM **能**当 softmax 烧不起的长程想象环境。
 - **全管线端到端打通**：grounded reward（修 hacking）→ imagination actor-critic（稳定）→ BC warm-start → 真 sim eval。
-- **能力（真 sim success）**：单阶段 libero_spatial **8.3%**（管线可行）；多阶段 **LIBERO-LONG 0%**——根因是 **policy class 太弱**（微型 reactive MLP + mean-pool latent、无语言/记忆），**非 WM 或训练法**。LIBERO-LONG 需真 VLA policy（OpenVLA-OFT 量级）配我们的 WM 当想象环境=下一步大工程。**不伪称"解决了 LIBERO-LONG"**。详见 `docs/writeup.md §12`。
+- **能力（真 sim success）**：单阶段 libero_spatial **8.3%**（管线可行）；多阶段 **LIBERO-LONG 0%**——根因是 **policy class 太弱**（微型 reactive MLP + mean-pool latent、无语言/记忆），**非 WM 或训练法**。**不伪称"解决了 LIBERO-LONG"**。详见 `docs/writeup.md §12`。
+
+## task#12 — 效率使能超长程想象 RL（真 VLA × Ultra-Long，进行中）
+libero_10 已饱和（OFT 94.5% / SimpleVLA-RL 98.5%）→ 换到**非饱和**战场 **LiLo-VLA Ultra-Long**（9/16-步组合任务，baseline 0% / SOTA 44%，有真 headroom）。
+- 🎯 **想象成本双证（核心命题）**：① 单步 WM forward：SDPA **OOM@T=768、68s@512**；KDA **5.3s@512（13×）、撑到 768**（`imagination_cost.png`）。② 可微想象 RL：SDPA **OOM@H=48（133GB）连一步训不了**；KDA/AttnRes **14.7/17.6GB 跑完**（`m2j_imagine_rl_3way.png`）。→ **softmax WM 烧不起超长想象 RL，O(N) KDA WM 是使能器**。
+- **OFT baseline on Ultra-Long = 0%**（真 VLA，libero_10 上 94.5% → Ultra-Long 0%，仅 ~0.3/5 子目标），坐实 headroom（与 LiLo-VLA 论文一致）。
+- **接口 nuance**：V-JEPA2 无像素 decoder → 像素 VLA 不能直接进 latent 想象；走 **A2：OFT 蒸成 latent 策略 + 想象 RL**（文献空白:JEPA-latent 想象 RL for VLA，§related_work）。蒸馏 + 想象-RL 抬 success **在建**（诚实:SOTA 44%，提升不确定）。
+详见 `docs/task12_plan.md` + `docs/related_work.md`。
