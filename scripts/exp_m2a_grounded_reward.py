@@ -32,6 +32,9 @@ N_POS = int(os.environ.get("M2_POS_DEMOS", "120"))      # demo 正轨迹数
 STEPS = int(os.environ.get("M2_STEPS", "3000"))
 MAXN = float(os.environ.get("ACT_MAXNORM", "0.6"))
 TASK = int(os.environ.get("P2_TASK", "0"))
+BENCH = os.environ.get("M2A_BENCH", "libero_spatial")
+M2A_DATA = os.environ.get("M2A_DATA", "/home/wm-vla-rl/_ext/datasets/libero_latents.pt")
+M2A_OUT = os.environ.get("M2A_OUT", "reward_model.pt")
 
 
 class RewardModel(nn.Module):                              # grounded value/reward head
@@ -77,14 +80,14 @@ def main():
         return F.layer_norm(h.float(), (h.size(-1),)).mean(0)   # [dim]
 
     # env
-    bench = benchmark.get_benchmark_dict()["libero_spatial"]()
+    bench = benchmark.get_benchmark_dict()[BENCH]()
     task = bench.get_task(TASK)
     bddl = os.path.join(get_libero_path("bddl_files"), task.problem_folder, task.bddl_file)
     env = OffScreenRenderEnv(bddl_file_name=bddl, camera_heights=128, camera_widths=128)
     print(f"M2.1 grounded reward | task={task.name} | neg={N_NEG}x{NEG_H} pos_demos={N_POS} γ={GAMMA}", flush=True)
 
     # ---- POSITIVES: demo latents（已 encode，含 layer_norm）-> meanpool + γ-return target ----
-    data = torch.load("/home/wm-vla-rl/_ext/datasets/libero_latents.pt")
+    data = torch.load(M2A_DATA)
     random.seed(0); random.shuffle(data)
     Zpos, Tpos = [], []
     for d in data[:N_POS]:
@@ -164,7 +167,7 @@ def main():
               f"(成功={succ}) → 越低越说明不再被骗", flush=True)
     env.close()
 
-    torch.save(rm.state_dict(), f"{CKPT}/reward_model.pt")
+    torch.save(rm.state_dict(), f"{CKPT}/{M2A_OUT}")
     json.dump(dict(held_auc=held_auc, pos_mean=float(sp.mean()), neg_mean=float(sn.mean()),
                    n_pos=len(Zpos), n_neg=len(Zneg), gamma=GAMMA, **rob),
               open(f"{RES}/m2a_grounded_reward.json", "w"))
