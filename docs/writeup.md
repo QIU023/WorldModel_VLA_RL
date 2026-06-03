@@ -100,3 +100,12 @@ progress head（mean-pool latent→MLP→t/T；held progress-MSE 0.0047、monoto
 - **接地性（full：14.6k pos / 2.4k neg）**：held-out AUC(成功导向 vs 失败)=**1.000**，pos r̂ 0.680 / neg 0.002。**诚实 caveat**：AUC=1.0 是因为**随机负例太易分**（乱挥 vs 有目的操作）——这不是卖点。
 - **真正信息在硬负例（unseen 被-hack 态）**：new grounded r̂ **0.258** vs old progress head **0.559**——接地 reward 对没训过的 hacked 态明显更不易被骗（老 head 虚高 2.2×），但 0.258 仍高于纯失败档 0.002 → **硬负例鲁棒性只是部分**。这恰好诚实地导出下两步：①把 hacked 态当**对抗负例**回灌重训（adversarial reward modeling）；②**value 学习**（TD bootstrap 真 success）才是最终接地"行为"的关键，reward head 单独不够。
 - 这是 imagination-RL 的地基（reward → value → actor）。图/日志 `results/m2a_grounded_reward.{json,log}`。
+
+### 10b. grounded-CEM 闭环 + imagination actor-critic scaffold（2026-06-03）
+**(i) grounded reward 闭环（M2.1b，CEM）**：把 grounded r̂ 当 CEM objective 闭环跑（`exp_p2_cem REWARD=grounded`，40 步）。r̂ **0.004→0.001**（诚实地≈0）、energy 0.548→0.518 几乎不动、**no success 且 no hacking**。→ 坐实"grounded reward 诚实，但在 2 步 MPC 前瞻下太稀疏、无 planning 信号"。对比 §9b 的 progress head（被 hack 到 0.14+）：**grounding 用诚实换掉了 hacking，代价是稀疏**。
+
+**(ii) imagination actor-critic（M2C，Dreamer-style scaffold）**：actor π(z)+critic V(z) 在 latent WM **想象 rollout**（可微穿过冻结 WM，math-SDPA）里一起学，reward=grounded r̂，λ-return。`exp_m2c_imagine_ac.py`。
+- **机器跑通且稳定**。**关键 bug 抓到并修**：缺 target critic → **value 爆炸**（actor 不拉 reward 而 inflate critic：imag_return 0.22→2.07、r̂ 平 → **value 层的 hacking**）。标准修法 = **target critic（EMA、detached bootstrap）+ actor 梯度只走 reward→dynamics（value 项 detach）** → imag_return 稳定 0.1–0.24、critic_loss 平。
+- **诚实信号（印证主线）**：H=4 短 horizon、随机 demo 起点 → actor **够不到高-r̂（近 success）态**，imag_reward 全程 ~0.05 不涨。
+- **→ 主线闭环**：grounded reward 修 hacking ✓ → AC 机器稳定 ✓ → **短 horizon 想象够不到 success（reward 诚实稀疏）→ 需长 horizon → 长想象 SDPA O(N²) 烧不起 → 必须换 O(N) KDA WM（finale）**。scaffold 故意用 SDPA、到长 H 自然撞墙，给 KDA 换入制造干净动机。**efficiency 使能长想象、长想象使能能力**——即北极星。
+- infra note：长-H 想象的 autograd 需 contiguous-mask + flash（现 math backend 为正确性，长 H 慢/吃显存）；KDA recurrent 想象是 O(1)/步，正是长想象的解。图/日志 `results/m2c_imagine_ac.{json,log}`。
