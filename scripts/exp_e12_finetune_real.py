@@ -16,19 +16,21 @@ STEPS = int(os.environ.get("FT_STEPS", "600"))
 TW = int(os.environ.get("FT_T", "64"))            # 训练窗口帧数
 
 
-def sample_window(demos, dev, T):
-    while True:
-        d = random.choice(demos)
-        if d["T"] >= T + 1:
-            break
-    st = random.randint(0, d["T"] - T - 1)
-    lat = d["latent"][st:st + T + 1].float().to(dev)          # [T+1, tok, dim]
-    tok = lat.shape[1]; dim = lat.shape[2]
-    x = lat[:T].reshape(1, T * tok, dim)                      # context frames 0..T-1
-    tgt = lat[1:T + 1].reshape(1, T * tok, dim)               # next latents 1..T
-    a = d["actions"][st:st + T].float().unsqueeze(0).to(dev)  # [1,T,7]
-    s = d["states"][st:st + T].float().unsqueeze(0).to(dev)
-    return x, a, s, tgt
+def sample_window(demos, dev, T, bs=1):                       # 批量采样：填满显存提吞吐
+    xs, as_, ss, ts = [], [], [], []
+    for _ in range(bs):
+        while True:
+            d = random.choice(demos)
+            if d["T"] >= T + 1:
+                break
+        st = random.randint(0, d["T"] - T - 1)
+        lat = d["latent"][st:st + T + 1].float().to(dev)      # [T+1, tok, dim]
+        tok = lat.shape[1]; dim = lat.shape[2]
+        xs.append(lat[:T].reshape(T * tok, dim))              # context frames 0..T-1
+        ts.append(lat[1:T + 1].reshape(T * tok, dim))         # next latents 1..T
+        as_.append(d["actions"][st:st + T].float().to(dev))   # [T,7]
+        ss.append(d["states"][st:st + T].float().to(dev))
+    return torch.stack(xs), torch.stack(as_), torch.stack(ss), torch.stack(ts)
 
 
 @torch.no_grad()
@@ -71,6 +73,10 @@ def main():
     else:  # sdpa：公平 parity 参考——同样在 LIBERO 上微调（全参数）
         student = pred.to(dev)
         student.attn_mask = build_action_block_causal_attention_mask(TW, H, W, 2).to(dev)
+    if int(os.environ.get("FT_ACT_CKPT", "0")):              # 激活检查点：换计算省显存 → 拉大 batch
+        student.use_activation_checkpointing = True
+    BS = int(os.environ.get("FT_BS", "1"))                    # micro-batch（KDA fla 内核 T=128 上限 ~8）
+    ACCUM = int(os.environ.get("FT_ACCUM", "1"))              # 梯度累积 → effective batch = BS*ACCUM
     train_params = [p for p in student.parameters() if p.requires_grad]
     opt = torch.optim.AdamW(train_params, lr=1e-4)
     print(f"[{MODE}] trainable={sum(p.numel() for p in train_params)/1e6:.0f}M T={TW} steps={STEPS} "
@@ -98,13 +104,15 @@ def main():
     for step in range(start_step, STEPS):
         if os.path.exists(DISK_STOP):
             print("DISK_STOP -> stop", flush=True); break
-        x, a, s, tgt = sample_window(train, dev, TW)
-        out = student(x, a, s)
-        loss = F.mse_loss(out, tgt)
-        opt.zero_grad(); loss.backward(); opt.step()
-        losses.append(loss.item())
+        opt.zero_grad(); loss_acc = 0.0
+        for _ in range(ACCUM):                                # 梯度累积：大 effective batch
+            x, a, s, tgt = sample_window(train, dev, TW, BS)
+            l = F.mse_loss(student(x, a, s), tgt) / ACCUM
+            l.backward(); loss_acc += l.item()
+        opt.step()
+        losses.append(loss_acc)
         if step % 50 == 0 or step == STEPS - 1:
-            print(f"step {step:4d} loss {loss.item():.5f}", flush=True)
+            print(f"step {step:4d} loss {loss_acc:.5f}", flush=True)
         if step and step % 200 == 0:
             student.eval(); m = eval_mse(student, held, dev, TW); student.train()
             print(f"  [eval@{step}] KDA held-out MSE = {m:.5f}", flush=True)
