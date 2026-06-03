@@ -52,5 +52,11 @@
 - 关键代码：`module1_vjepa2ac/kda_acblock.py`（KDA + CrossFrameAttnRes）、`scripts/exp_e1*`（scaling/parity/rollout 实验）、`exp_e12_finetune_real.py`（微调，FT_MODE/FT_FREEZE/USE_ATTNRES knobs）。
 - 详细机制讲解：`docs/writeup.md`；执行日志：`docs/PROGRESS.md`；完整方案：`docs/PLAN.md`。
 
+## 路线图（北极星 + 三轨，2026-06-03 锁定）
+**北极星/收尾**：efficient O(N) latent WM 作**想象环境** → VLA 在**超长序列任务（LIBERO-LONG/libero_100）**上 capable；efficiency 是使能器（softmax WM 在该 horizon OOM/超时）。**效率→能力，端到端证明**。
+- **Track A — P1/P1.5 大规模化（no toy/hacking）**：efficient WM 转**全 LIBERO（130 任务）+ 长序列（T→WM 上限）+ 更多步**；parity/效率/长程 rollout 保真在**长程 scale** 上重做。
+- **Track B — P2/P3 标准 scaffold + smoke（先不上创新）**：imagination-RL 管线（reward→value→actor, Dreamer/TD-MPC2）+ 蒸馏，用**标准 SDPA WM** 先搭通、smoke 出 success（创新 WM 留给 finale，差异化才干净）。
+- **Finale — 汇合**：换上 **O(N) KDA WM** 推到 LIBERO-LONG 超长 horizon，证明高效 WM 使能超长任务。
+
 ## 状态
-P0 ✅ baseline / **P1 ✅ 高效 KDA WM / P1.5 ✅ novel 跨帧 Block-AttnRes** / **M2（重定义为 imagination RL in latent WM, TD-MPC2/Dreamer 标准范式）**：M2.1 ✅ grounded reward（接地真 success、修掉 hacking 根因）/ M2.2 value(TD) 🔨 / M2.3 imagination actor 🔨 / P3 未动。
+P0 ✅ / **P1 ✅·P1.5 ✅（小规模，待 Track A 大规模化）** / M2.1 ✅ grounded reward（修掉 hacking 根因）/ M2.1b 🔄 grounded-CEM eval / M2.2 value 🔨 / M2.3 actor 🔨 / Track A scale-up 🔨 / P3 未动。
