@@ -112,7 +112,9 @@ class _LayerAttnRes(nn.Module):
     def __init__(self, inner, coord, idx, lpb, n_layers):
         super().__init__()
         self.inner = inner
-        self.coord = coord
+        # coord 只在 base.attnres_coord 注册一次;这里用 object.__setattr__ 存引用，
+        # 不让 nn.Module 把它注册成本层子模块(否则参数在多层名字下共享 → safetensors 拒存)。
+        object.__setattr__(self, 'coord', coord)
         self.idx = idx
         self.lpb = lpb
         self.is_boundary = (idx + 1) % lpb == 0
