@@ -77,6 +77,81 @@ class KDAttention(nn.Module):
         return self.o_proj(o), None, past_key_value
 
 
+def block_attn_res(blocks, partial, proj, norm):
+    """跨层(深度轴)Block-AttnRes(Kimi 2603.15031)—— 对所有已完成 block 输出 + 当前 partial
+    做 learned pseudo-query 的 softmax 聚合。zero-init proj → 起步均匀(no-op)稳定接入。
+    blocks/partial: 每个 [B, T, D]。"""
+    V = torch.stack(blocks + [partial], dim=0)            # [N+1, B, T, D]
+    K = norm(V)
+    q = proj.weight.squeeze(0)                            # [D]
+    logits = torch.einsum("d,nbtd->nbt", q, K)
+    w = torch.softmax(logits, dim=0)
+    return torch.einsum("nbt,nbtd->btd", w, V)
+
+
+class _AttnResCoord(nn.Module):
+    """跨层 AttnRes 协调器:持 zero-init pseudo-query(每组边界一个)+ 共享 RMSNorm。
+    committed 是 runtime list(每次 forward 由 layer0 清空)。"""
+
+    def __init__(self, dim, n_commit):
+        super().__init__()
+        self.proj = nn.ModuleList([nn.Linear(dim, 1, bias=False) for _ in range(max(1, n_commit))])
+        for p in self.proj:
+            nn.init.zeros_(p.weight)
+        self.norm = nn.RMSNorm(dim)
+        self.committed = []
+
+    def reset(self):
+        self.committed = []
+
+
+class _LayerAttnRes(nn.Module):
+    """包一个 decoder layer:组边界(每 lpb 层)提交输出,并把"下一组输入"换成对已提交组的
+    AttnRes 聚合。forward 签名透传(兼容 HF layer loop)。layer0 负责每次 forward 清空 committed。"""
+
+    def __init__(self, inner, coord, idx, lpb, n_layers):
+        super().__init__()
+        self.inner = inner
+        self.coord = coord
+        self.idx = idx
+        self.lpb = lpb
+        self.is_boundary = (idx + 1) % lpb == 0
+        self.is_last = idx == n_layers - 1
+
+    def forward(self, hidden_states, *args, **kwargs):
+        if self.idx == 0:
+            self.coord.reset()
+        out = self.inner(hidden_states, *args, **kwargs)
+        hs = out[0] if isinstance(out, tuple) else out
+        if self.is_boundary:
+            self.coord.committed.append(hs)
+            if not self.is_last:                          # 组边界:下一组输入 = AttnRes 聚合
+                g = len(self.coord.committed) - 1         # 第几个边界
+                hs = block_attn_res(self.coord.committed[:-1], self.coord.committed[-1],
+                                    self.coord.proj[g], self.coord.norm)
+            if isinstance(out, tuple):
+                return (hs,) + out[1:]
+            return hs
+        return out
+
+
+def attnres_ify_llama(model, groups=4):
+    """跨层 Block-AttnRes:把 L 层分成 groups 组,组边界用 block_attn_res 聚合已完成组输出。
+    与 KDA(时间轴)正交。先 kdaify_llama 再 attnres_ify_llama。"""
+    base = model.model if hasattr(model, "model") else model
+    dim = base.config.hidden_size
+    L = len(base.layers)
+    lpb = max(1, L // groups)
+    n_agg = sum(1 for i in range(L) if (i + 1) % lpb == 0 and i != L - 1)  # 实际聚合边界数(避免 DDP 未用参数)
+    dev = next(base.parameters()).device
+    dtype = next(base.parameters()).dtype
+    coord = _AttnResCoord(dim, n_agg).to(dev, dtype)
+    base.attnres_coord = coord                            # 挂住,随模型保存/移动
+    base.layers = nn.ModuleList([_LayerAttnRes(l, coord, i, lpb, L) for i, l in enumerate(base.layers)])
+    print(f"attnres_ify_llama: {L} layers -> {n_commit} groups (lpb={lpb}), cross-layer AttnRes")
+    return model
+
+
 def kdaify_llama(model, layers=None):
     """把 LlamaModel 每个 decoder layer 的 self_attn 原地换成 KDAttention(fresh,从零训)。
     layers: None=全替(纯-KDA);或传 set/list 只替部分层(hybrid:留一些 softmax 层,Kimi-Linear 哲学)。
