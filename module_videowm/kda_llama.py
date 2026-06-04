@@ -148,7 +148,7 @@ def attnres_ify_llama(model, groups=4):
     coord = _AttnResCoord(dim, n_agg).to(dev, dtype)
     base.attnres_coord = coord                            # 挂住,随模型保存/移动
     base.layers = nn.ModuleList([_LayerAttnRes(l, coord, i, lpb, L) for i, l in enumerate(base.layers)])
-    print(f"attnres_ify_llama: {L} layers -> {n_commit} groups (lpb={lpb}), cross-layer AttnRes")
+    print(f"attnres_ify_llama: {L} layers, lpb={lpb}, {n_agg} cross-layer AttnRes aggregation points")
     return model
 
 
