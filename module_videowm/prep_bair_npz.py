@@ -43,7 +43,7 @@ for split in args.splits.split(','):
             ok = True
             for i in range(T):
                 try:
-                    b = ex[f'{i}/image_main/encoded']
+                    b = ex[f'{i}/image_aux1/encoded']        # iVideoGPT BAIR 用 aux1(手部相机),非 main
                     b = b.tobytes() if hasattr(b, 'tobytes') else (b[0] if isinstance(b, (list, tuple)) else bytes(b))
                     img = np.frombuffer(b, dtype=np.uint8)
                     if img.size != 64 * 64 * 3:
