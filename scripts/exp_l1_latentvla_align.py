@@ -13,6 +13,7 @@ DATA = os.environ.get("L1_DATA", "/home/wm-vla-rl/_ext/datasets/latentvla_align_
 LLM = os.environ.get("L1_LLM", "Qwen/Qwen3-1.7B")
 STEPS = int(os.environ.get("L1_STEPS", "3000")); BS = int(os.environ.get("L1_BS", "32"))
 USE_LORA = int(os.environ.get("L1_LORA", "1"))        # LoRA the LLM(stage2 风格)
+CHUNK = int(os.environ.get("L1_CHUNK", "8"))          # action chunk(OFT 范式)
 LATENT_DIM = 1408
 
 
@@ -22,7 +23,7 @@ class LatentVLA(nn.Module):
         self.llm = llm                                   # 冻结
         self.projector = nn.Sequential(nn.Linear(LATENT_DIM, hid), nn.GELU(), nn.Linear(hid, hid))
         self.proprio_proj = nn.Sequential(nn.Linear(7, hid), nn.GELU(), nn.Linear(hid, hid))   # proprio token
-        self.action_head = nn.Sequential(nn.LayerNorm(hid), nn.Linear(hid, 256), nn.GELU(), nn.Linear(256, 7))
+        self.action_head = nn.Sequential(nn.LayerNorm(hid), nn.Linear(hid, 512), nn.GELU(), nn.Linear(512, 7 * CHUNK))
 
     def forward(self, latent, proprio, lang_embeds, lang_mask):
         vis = self.projector(latent)                     # [B,64,hid]
@@ -31,7 +32,7 @@ class LatentVLA(nn.Module):
         pre = torch.ones(vis.shape[0], vis.shape[1] + 1, device=vis.device, dtype=lang_mask.dtype)
         mask = torch.cat([pre, lang_mask], dim=1)
         out = self.llm(inputs_embeds=seq, attention_mask=mask).last_hidden_state
-        return self.action_head(out[:, -1])              # [B,7]
+        return self.action_head(out[:, -1]).view(-1, CHUNK, 7)    # [B,CHUNK,7]
 
 
 def main():
@@ -85,7 +86,9 @@ def main():
         for _ in range(BS):
             d = random.choice(pool); t = random.randint(0, d["T"] - 1)
             lat.append(d["latent"][t].float()); pro.append(d["states"][t].float())
-            act.append(d["actions"][t].float()); ti.append(l2i[d["language"]])
+            a = d["actions"][t:t + CHUNK].float()
+            if a.shape[0] < CHUNK: a = torch.cat([a, a[-1:].repeat(CHUNK - a.shape[0], 1)], 0)  # pad 末动作
+            act.append(a); ti.append(l2i[d["language"]])
         lat = torch.stack(lat).to(DEV, torch.bfloat16); pro = torch.stack(pro).to(DEV, torch.bfloat16)
         act = torch.stack(act).to(DEV); ti = torch.tensor(ti, device=DEV)
         le = lang_emb_pad[ti].clone(); lm = lang_msk_pad[ti]
@@ -116,7 +119,8 @@ def main():
     # 最终 ablation 套件
     full = eval_mse(n=40); zv = eval_mse(zv=True, n=40); zl = eval_mse(zl=True, n=40)
     # 存:projector + action_head + LoRA(给 RL/闭环用)
-    sd = dict(projector=model.projector.state_dict(), action_head=model.action_head.state_dict())
+    sd = dict(projector=model.projector.state_dict(), proprio_proj=model.proprio_proj.state_dict(),
+              action_head=model.action_head.state_dict())
     if USE_LORA:
         sd["lora"] = {k: v.cpu() for k, v in model.named_parameters() if "lora" in k.lower()}
     torch.save(sd, f"{CKPT}/latentvla_align.pt")
