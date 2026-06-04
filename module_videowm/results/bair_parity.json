@@ -1,0 +1,12 @@
+{"task":"BAIR robot-pushing video prediction (iVideoGPT, aux1 camera, 256 test ep)",
+ "setting":"gen_times=1 (fair same-setting); standard iVideoGPT BAIR recipe (138M config, lr1e-4 cosine, bs16, seg16/ctx1/res64, wd0.01, attn_drop0.1)",
+ "method":"KDA = attention-surgery init from pretrained SDPA q/k/v/o + fresh gating + cross-layer AttnRes, then adapt (NOT from scratch)",
+ "results_gen1":{
+   "SDPA_pretrained_baseline":{"fvd":109.9,"psnr":17.92,"ssim":0.769},
+   "KDA_AttnRes_10k":{"fvd":193.5,"psnr":16.6},
+   "KDA_AttnRes_20k":{"fvd":122.8,"psnr":17.26,"ssim":0.759},
+   "KDA_AttnRes_30k":{"fvd":122.4,"psnr":17.34,"ssim":0.756},
+   "KDA_AttnRes_40k_converged":{"fvd":122.1,"psnr":17.33,"ssim":0.757}},
+ "verdict":"near-parity: KDA O(N) linear-attn + AttnRes converges to FVD 122 vs SDPA 110 (+11% FVD, -0.6 psnr). Linearization retains ~90% quality; recovery curve 193->123->122 converged. Consistent with Attention Surgery/LinVideo.",
+ "notes":"SDPA gen100 FVD=75.1 (paper 60.8); gen1 inflates FVD but is the fair same-setting compare. use_cache=False for KDA gen (correct, slow); proper O(1) KDA decode cache is TODO (the decode-efficiency contribution).",
+ "efficiency":"separate benchmark: KDA fwd+bwd 2.47x faster than Flash-SDPA at 65k seq (O(N) vs O(N^2) compute); crossover ~32k"}
