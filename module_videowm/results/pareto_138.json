@@ -1,0 +1,33 @@
+{
+  "experiment": "138M BAIR video-WM: KDA-layer-count Pareto (quality vs rollout efficiency)",
+  "base_model": "thuml/ivideogpt-bair-64-act-free (138M, 12L/768d, paper BAIR benchmark FVD 60.8 @gen100)",
+  "method": "attention surgery (init KDA from pretrained softmax q/k/v/o) + cross-layer Block-AttnRes(groups 4); re-finetune 40k on 18.8k BAIR-aux",
+  "recipe": "standard bair-64-act-free.sh: effective batch 64 (bs32/gpu x2), lr 1e-4 cosine, max_grad_norm 1.0, segment_length 16, context_length 1, wd 0.01, llama_attn_drop 0.1, embed_no_wd; frozen bair-64 tokenizer",
+  "eval_setting": "gen_times 1 (fair, same for all), 256 BAIR-aux test",
+  "data_caveat": "18,778 train (subset ~44% of full ~43k; Berkeley server throttle). Internal comparison unaffected; absolute FVD not comparable to paper full-data 60.8 (also gen100 vs our gen1).",
+  "points": {
+    "K0_sdpa_baseline": {
+      "kda_layers": 0, "desc": "paper 60.8 model itself (SDPA full attention), eval-only",
+      "fvd": 108.68, "psnr": 17.93, "ssim": 0.770, "lpips": 0.136, "eval_loss": 2.141
+    },
+    "K9_kimi_75pct": {
+      "kda_layers": 9, "desc": "75% Kimi-Linear 3:1 (9 KDA + 3 full@{3,7,11}) + AttnRes",
+      "fvd": 112.36, "psnr": 17.70, "ssim": 0.761, "lpips": 0.140, "eval_loss": 2.302,
+      "fvd_vs_baseline_pct": 3.4
+    },
+    "K12_all_kda": {
+      "kda_layers": 12, "desc": "100% KDA + AttnRes (efficiency upper bound)",
+      "fvd": 110.88, "psnr": 17.56, "ssim": 0.758, "lpips": 0.143, "eval_loss": 2.578,
+      "fvd_vs_baseline_pct": 2.0
+    }
+  },
+  "rollout_decode_peak_mem_GB": {
+    "note": "peak GPU mem for autoregressive decode; SDPA layers grow KV cache O(N), KDA layers O(1) state. Latency column omitted (KDA decode path unreliable in this harness).",
+    "N512":   {"K0": 0.37, "K9": 0.61, "K12": 0.34},
+    "N2048":  {"K0": 0.48, "K9": 0.42, "K12": 0.40},
+    "N8192":  {"K0": 0.92, "K9": 0.68, "K12": 0.61},
+    "N32768": {"K0": 2.67, "K9": 1.74, "K12": 1.44}
+  },
+  "mem_saving_at_32768_pct": {"K9": 35, "K12": 46},
+  "takeaway": "Linearizing the temporal attention (75% or 100%) retains near-parity FVD (+2 to +3.4% vs SDPA baseline) while cutting long-rollout decode memory 35-46% at N=32768 (saving grows with KDA-layer-count x rollout length). Token-level eval_loss degrades more (2.14->2.58) than perceptual/FVD quality, i.e. AttnRes+KDA preserves video quality despite higher per-token perplexity. On this data/budget all-KDA already near-parity, so it dominates the 75% hybrid here; the hybrid is the safer choice when a larger quality gap must be closed."
+}
