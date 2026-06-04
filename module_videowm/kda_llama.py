@@ -154,18 +154,39 @@ def attnres_ify_llama(model, groups=4):
     return model
 
 
-def kdaify_llama(model, layers=None):
-    """把 LlamaModel 每个 decoder layer 的 self_attn 原地换成 KDAttention(fresh,从零训)。
-    layers: None=全替(纯-KDA);或传 set/list 只替部分层(hybrid:留一些 softmax 层,Kimi-Linear 哲学)。
+def kdaify_llama(model, layers=None, init_from_softmax=False):
+    """把 LlamaModel 每个 decoder layer 的 self_attn 原地换成 KDAttention。
+    layers: None=全替(纯-KDA);或传 set/list 只替部分层(hybrid)。
+    init_from_softmax=True: **attention surgery** —— 把预训练 softmax attn 的 q/k/v/o 权重拷进
+      新 KDAttention(同 dim、无 GQA 时直接拷),gating(beta/forget/output)新初始化 → 继承预训练知识,
+      只需短 adapt(Attention Surgery 2509.24899 / LinVideo 2510.08318 范式),不从零。
     model 可以是 LlamaForCausalLM(取 .model)或 LlamaModel。"""
     base = model.model if hasattr(model, "model") else model
     config = base.config
     n = len(base.layers)
     target = set(range(n)) if layers is None else set(layers)
+    copied = 0
     for i, layer in enumerate(base.layers):
         if i in target:
-            dev = next(layer.self_attn.parameters()).device
-            dtype = next(layer.self_attn.parameters()).dtype
-            layer.self_attn = KDAttention(config, layer_idx=i).to(dev, dtype)
-    print(f"kdaify_llama: replaced {len(target)}/{n} attention layers with KDA")
+            old = layer.self_attn
+            dev = next(old.parameters()).device
+            dtype = next(old.parameters()).dtype
+            new = KDAttention(config, layer_idx=i).to(dev, dtype)
+            if init_from_softmax:                         # 手术:拷 q/k/v/o
+                for proj in ("q_proj", "k_proj", "v_proj", "o_proj"):
+                    if hasattr(old, proj) and getattr(old, proj).weight.shape == getattr(new, proj).weight.shape:
+                        getattr(new, proj).load_state_dict(getattr(old, proj).state_dict())
+                        copied += 1
+            layer.self_attn = new
+    # 关键:KDA 的 recurrent state 与 HF DynamicCache 不兼容 —— HF generate 默认 use_cache=True
+    # 传增量 token,KDA 会丢上下文 → 生成乱码。强制 use_cache=False:生成时每步喂全序列、
+    # KDA 走 chunk_kda 全序列因果(正确,O(N²) decode 慢但对)。
+    # TODO(decode 效率):写 KDA 专用 Cache 存 recurrent state → O(1)/步(那才是 KDA 的 decode 卖点)。
+    config.use_cache = False
+    if hasattr(model, "config"):
+        model.config.use_cache = False
+    if hasattr(model, "generation_config") and model.generation_config is not None:
+        model.generation_config.use_cache = False
+    print(f"kdaify_llama: replaced {len(target)}/{n} attention layers with KDA"
+          f"{f' (surgery: copied {copied} q/k/v/o projections)' if init_from_softmax else ''}; use_cache=False (KDA full-seq decode)")
     return model
