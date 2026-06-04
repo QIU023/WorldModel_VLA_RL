@@ -1,0 +1,5 @@
+{"benchmark":"fwd+bwd time vs seq_len, 8-layer 512-dim LLaMA, 1xH200",
+ "note":"SDPA=FlashAttention (O(N) mem, O(N^2) compute); KDA=fla chunk_kda (O(N)). Crossover ~32k.",
+ "results_ms":{"2048":{"sdpa":14,"kda":40},"8192":{"sdpa":16,"kda":41},"32768":{"sdpa":105,"kda":75},"65536":{"sdpa":351,"kda":142}},
+ "kda_speedup":{"2048":0.35,"8192":0.40,"32768":1.41,"65536":2.47},
+ "verdict":"KDA O(N) wins decisively at long seq (>=32k), gap grows with length; value targets long-horizon video WM"}

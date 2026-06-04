@@ -1,0 +1,94 @@
+"""KDA(Kimi Delta Attention,门控 delta-rule 线性注意力)drop-in 替换 HF LlamaAttention,
+给 iVideoGPT 的视频 token AR transformer 用。
+
+为什么这里用真 fla 快核(不像 dino_wm 的纯-torch):iVideoGPT 是**扁平因果 token 序列**
+(256 ctx + 16/帧),长 rollout 时序列变长(T=100 帧 → ~1840 tokens,T=1000 → ~16k)→
+O(N²) softmax 真爆 → KDA O(N) 的 chunk_kda 快核正是为长因果序列设计的。
+
+复用 module1_vjepa2ac/kda_acblock.py 里验证过的 fla-KDA 配方:
+  q/k/v + per-head beta + 低秩 forget-gate(fused_kda_gate)+ qk L2norm + output gate + chunk_kda。
+接口匹配 transformers 4.46 LlamaAttention.forward;KDA 因果自带、无需 mask/RoPE(纯-KDA 层)。
+
+env:libero venv(torch2.12 + fla0.5.0 + KDA kernels)。
+"""
+import torch
+import torch.nn as nn
+from einops import rearrange
+from fla.ops.kda import chunk_kda, fused_recurrent_kda
+from fla.ops.kda.gate import fused_kda_gate
+
+
+class KDAttention(nn.Module):
+    """门控 delta-rule 线性注意力,drop-in 替换 LlamaAttention。
+    forward 签名兼容 transformers 4.46:(hidden_states, attention_mask, position_ids,
+    past_key_value, output_attentions, use_cache, cache_position, position_embeddings, **kw)。
+    KDA 因果自带 → 忽略 attention_mask/RoPE(position_embeddings)。
+    use_cache 走 fused_recurrent_kda 携带固定大小 recurrent state(O(1)/步,长 rollout 的关键)。"""
+
+    def __init__(self, config, layer_idx=None):
+        super().__init__()
+        self.layer_idx = layer_idx
+        dim = config.hidden_size
+        nh = config.num_attention_heads
+        while dim % nh:
+            nh -= 1
+        self.num_heads = nh
+        self.head_dim = hd = dim // nh
+        self.q_proj = nn.Linear(dim, dim, bias=False)
+        self.k_proj = nn.Linear(dim, dim, bias=False)
+        self.v_proj = nn.Linear(dim, dim, bias=False)
+        self.b_proj = nn.Linear(dim, nh, bias=False)              # per-head beta(delta 强度)
+        self.f_a = nn.Linear(dim, hd, bias=False)                 # 低秩 forget-gate
+        self.f_b = nn.Linear(hd, dim, bias=False)
+        self.g_a = nn.Linear(dim, hd, bias=False)                 # 低秩 output-gate
+        self.g_b = nn.Linear(hd, dim, bias=False)
+        self.A_log = nn.Parameter(torch.log(torch.empty(nh).uniform_(1, 16)))
+        self.dt_bias = nn.Parameter(torch.zeros(dim))
+        self.o_norm = nn.RMSNorm(hd)
+        self.o_proj = nn.Linear(dim, dim, bias=False)
+
+    def forward(self, hidden_states, attention_mask=None, position_ids=None,
+                past_key_value=None, output_attentions=False, use_cache=False,
+                cache_position=None, position_embeddings=None, **kwargs):
+        x = hidden_states
+        B, T, D = x.shape
+        H = self.num_heads
+        q = rearrange(self.q_proj(x), "b t (h d) -> b t h d", h=H).to(torch.bfloat16)
+        k = rearrange(self.k_proj(x), "b t (h d) -> b t h d", h=H).to(torch.bfloat16)
+        v = rearrange(self.v_proj(x), "b t (h d) -> b t h d", h=H).to(torch.bfloat16)
+        g_raw = rearrange(self.f_b(self.f_a(x)), "b t (h d) -> b t h d", h=H).float()
+        g = fused_kda_gate(g_raw, self.A_log.float(), dt_bias=self.dt_bias.float())
+        beta = self.b_proj(x).float().sigmoid()
+
+        # past_key_value: 用 dict 存 KDA recurrent state(非标准 HF Cache，自管理）
+        init_state = None
+        if use_cache and isinstance(past_key_value, dict):
+            init_state = past_key_value.get(self.layer_idx)
+        recurrent = (init_state is not None) or (T <= 64)
+        fn = fused_recurrent_kda if recurrent else chunk_kda
+        o, final = fn(q=q, k=k, v=v, g=g, beta=beta, initial_state=init_state,
+                      output_final_state=use_cache, use_qk_l2norm_in_kernel=True, cu_seqlens=None)
+        if use_cache and isinstance(past_key_value, dict):
+            past_key_value[self.layer_idx] = final
+
+        g_out = rearrange(self.g_b(self.g_a(x)), "b t (h d) -> b t h d", h=H).float()
+        o = self.o_norm(o.float()) * torch.sigmoid(g_out)
+        o = rearrange(o, "b t h d -> b t (h d)").to(x.dtype)
+        return self.o_proj(o), None, past_key_value
+
+
+def kdaify_llama(model, layers=None):
+    """把 LlamaModel 每个 decoder layer 的 self_attn 原地换成 KDAttention(fresh,从零训)。
+    layers: None=全替(纯-KDA);或传 set/list 只替部分层(hybrid:留一些 softmax 层,Kimi-Linear 哲学)。
+    model 可以是 LlamaForCausalLM(取 .model)或 LlamaModel。"""
+    base = model.model if hasattr(model, "model") else model
+    config = base.config
+    n = len(base.layers)
+    target = set(range(n)) if layers is None else set(layers)
+    for i, layer in enumerate(base.layers):
+        if i in target:
+            dev = next(layer.self_attn.parameters()).device
+            dtype = next(layer.self_attn.parameters()).dtype
+            layer.self_attn = KDAttention(config, layer_idx=i).to(dev, dtype)
+    print(f"kdaify_llama: replaced {len(target)}/{n} attention layers with KDA")
+    return model
