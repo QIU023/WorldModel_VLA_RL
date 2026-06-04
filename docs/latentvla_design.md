@@ -27,3 +27,11 @@ LIBERO demos(libero_10_arlayer_latents.pt,120 demo):每帧 (V-JEPA2 latent[256,1
 
 ## 验收(1-day)
 Stage1 对齐:held-out action MSE 显著低于随机/常数基线 → 证明"对齐这步 work、LLM 读得动 JEPA latent"。
+
+## Day-1 结果(2026-06-04)—— 对齐成功
+scaled 数据(libero_90+10,870 demo,77 distinct languages,池化 64-token V-JEPA2 latent)+ Qwen3-1.7B + LoRA(10.8M 可训):
+**held-out action MSE 0.0753 vs 常数 baseline 0.196(−62%)** → LLM 读得动 JEPA latent + 语言 → 预测动作。
+- 对照:初版 8 语言 + Qwen2-0.5B(冻结)= FAILS(0.244>0.198)→ 数据规模 + 模型是瓶颈,scale 后翻成 BEATS。
+- **接口缺口被证明可解**(像素 VLA 不能进 latent 想象的难题,用 VLM 式对齐绕过 + 保 LLM 容量)。
+- 下一步:LatentVLA 在 O(N) KDA+AttnRes V-JEPA2-AC WM 想象里 imagination-RL(GRPO,无 decoder)。
+  注:当前 ckpt 只存了 projector+action_head;RL 步要补存 LoRA 权重。
