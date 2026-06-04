@@ -5,7 +5,7 @@ V-JEPA2 编码器(池化 64-token)→ LatentVLA(projector+Qwen3+LoRA+proprio+act
 """
 import os, sys, json, numpy as np, torch
 import torch.nn as nn, torch.nn.functional as F
-os.environ.setdefault("MUJOCO_GL", "egl"); os.environ.setdefault("HF_HOME", "/home/.hf_home")
+os.environ.setdefault("MUJOCO_GL", "osmesa"); os.environ.setdefault("HF_HOME", "/home/.hf_home")
 os.environ.setdefault("TORCH_HOME", "/home/.cache/torch")
 sys.path.insert(0, "/home/wm-vla-rl/_ext/vjepa2"); sys.path.insert(0, "/home/wm-vla-rl/_ext/LIBERO")
 sys.path.insert(0, "/home/wm-vla-rl/module1_vjepa2ac"); sys.path.insert(0, "/home/wm-vla-rl/scripts")
