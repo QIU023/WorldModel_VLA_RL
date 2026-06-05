@@ -11,6 +11,8 @@ O(N²) softmax 真爆 → KDA O(N) 的 chunk_kda 快核正是为长因果序列�
 
 env:libero venv(torch2.12 + fla0.5.0 + KDA kernels)。
 """
+import math
+
 import torch
 import torch.nn as nn
 from einops import rearrange
@@ -43,7 +45,14 @@ class KDAttention(nn.Module):
         self.g_a = nn.Linear(dim, hd, bias=False)                 # 低秩 output-gate
         self.g_b = nn.Linear(hd, dim, bias=False)
         self.A_log = nn.Parameter(torch.log(torch.empty(nh).uniform_(1, 16)))
-        self.dt_bias = nn.Parameter(torch.zeros(dim))
+        # Mamba-style dt_bias init: gate decay a_t = exp(-exp(A_log)*softplus(g+dt_bias)). dt_bias=0
+        # gave softplus(0)=0.69 -> strong decay (a_t~0.05, forgets history) -> BROKEN surgery-init
+        # (acc_image ~0). Init dt_bias = inverse_softplus(dt), dt in [1e-3,1e-1] -> mild decay
+        # (a_t~0.86, keeps memory ~ full attention) so the linearized layer approximates softmax at init.
+        dt = torch.exp(torch.rand(dim) * (math.log(0.1) - math.log(1e-3)) + math.log(1e-3)).clamp(min=1e-4)
+        self.dt_bias = nn.Parameter(dt + torch.log(-torch.expm1(-dt)))
+        # zero-init forget-gate output proj -> g_raw≈0 at init -> decay governed by dt_bias (not random)
+        nn.init.zeros_(self.f_b.weight)
         self.o_norm = nn.RMSNorm(hd)
         self.o_proj = nn.Linear(dim, dim, bias=False)
 
