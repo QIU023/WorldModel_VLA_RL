@@ -1,0 +1,96 @@
+diff --git a/worldvla/eval_solver_libero_256.py b/worldvla/eval_solver_libero_256.py
+index f15374b..445c786 100644
+--- a/worldvla/eval_solver_libero_256.py
++++ b/worldvla/eval_solver_libero_256.py
+@@ -75,6 +75,11 @@ class Solver(PretrainSolverBase):
+         parser.add_argument("--his", type=str, default="1h_1a", choices=["1h_1a", "2h_1a", "4h_1a", "2h_2a", "4h_4a", "1h_1a_img_only", "2h_1a_img_only", "4h_1a_img_only"])
+         parser.add_argument("--action_steps", default=25, type=int, help="actions to be excuted when multiple actions are generated")
+         parser.add_argument("--half", default=0, type=int, help="which part of test set will be evaluated")
++        # KDA + AttnRes surgery (match training-time architecture before loading weights)
++        parser.add_argument("--attn_type", type=str, default="sdpa", choices=["sdpa", "kda"])
++        parser.add_argument("--kda_layers", type=str, default="kimi", help="kimi(3:1)/all/逗号索引")
++        parser.add_argument("--use_attnres", action="store_true", default=False)
++        parser.add_argument("--attnres_groups", type=int, default=8)
+         return parser
+ 
+     def _model_func(
+@@ -95,6 +100,40 @@ class Solver(PretrainSolverBase):
+             device_map="cpu",
+         )
+ 
++        if getattr(self.args, "attn_type", "sdpa") == "kda":
++            # The ckpt's safetensors carry KDA + AttnRes module keys (model.layers.N.inner.self_attn.*).
++            # from_pretrained above (standard arch) only matched the non-layer keys; rebuild the exact
++            # surgery tree, then overwrite ALL weights from the trained sharded safetensors.
++            import sys as _sys, glob as _glob, os as _os
++            _sys.path.insert(0, "/home/wm-vla-rl/module_videowm")
++            from kdaify_chameleon import kdaify_chameleon, attnres_ify_chameleon, kimi_kda_layers
++            from safetensors.torch import load_file as _load_file
++
++            if hasattr(model.model, "vqmodel"):
++                del model.model.vqmodel
++            nl = model.config.num_hidden_layers
++            if self.args.kda_layers == "kimi":
++                kset = kimi_kda_layers(nl)
++            elif self.args.kda_layers == "all":
++                kset = None
++            else:
++                kset = set(int(x) for x in self.args.kda_layers.split(","))
++            kdaify_chameleon(model, layers=kset, init_from_softmax=False)
++            if self.args.use_attnres:
++                attnres_ify_chameleon(model, groups=self.args.attnres_groups)
++
++            sd = {}
++            for f in sorted(_glob.glob(_os.path.join(init_from, "model-*.safetensors"))):
++                sd.update(_load_file(f))
++            sd = {k: v.to(torch.bfloat16) for k, v in sd.items()}
++            missing, unexpected = model.load_state_dict(sd, strict=False)
++            missing = [m for m in missing if "vqmodel" not in m]
++            self.logger.info(f"[KDA eval] loaded {len(sd)} tensors | missing(non-vq)={len(missing)} unexpected={len(unexpected)}")
++            if missing:
++                self.logger.info(f"[KDA eval] sample missing: {missing[:8]}")
++            if unexpected:
++                self.logger.info(f"[KDA eval] sample unexpected: {unexpected[:8]}")
++
+         return model, None
+ 
+     def _item_processor_func(self) -> ItemProcessor:
+diff --git a/worldvla/pretrain_solver_awm_w_ck.py b/worldvla/pretrain_solver_awm_w_ck.py
+index a6da6c6..a58bb3e 100644
+--- a/worldvla/pretrain_solver_awm_w_ck.py
++++ b/worldvla/pretrain_solver_awm_w_ck.py
+@@ -46,6 +46,11 @@ class Solver(PretrainSolverBase_ck):
+         parser.add_argument("--dropout", type=float, default=0.0)
+         parser.add_argument("--z_loss_weight", type=float, default=0.0)
+         parser.add_argument("--model_size", type=str, default="7B", choices=["7B", "34B"])
++        # KDA + AttnRes surgery(时间轴线性化 + 深度轴跨层残差)
++        parser.add_argument("--attn_type", type=str, default="sdpa", choices=["sdpa", "kda"])
++        parser.add_argument("--kda_layers", type=str, default="kimi", help="kimi(3:1)/all/逗号索引")
++        parser.add_argument("--use_attnres", action="store_true", default=False)
++        parser.add_argument("--attnres_groups", type=int, default=8)
+         return parser
+ 
+     def _model_func(
+@@ -80,6 +85,22 @@ class Solver(PretrainSolverBase_ck):
+ 
+         del model.model.vqmodel
+ 
++        if self.args.attn_type == "kda":               # surgery:时间轴 KDA(75% Kimi)+ 深度轴 AttnRes
++            import sys as _sys
++            _sys.path.insert(0, "/home/wm-vla-rl/module_videowm")
++            from kdaify_chameleon import kdaify_chameleon, attnres_ify_chameleon, kimi_kda_layers
++            nl = model.config.num_hidden_layers
++            if self.args.kda_layers == "kimi":
++                kset = kimi_kda_layers(nl)
++            elif self.args.kda_layers == "all":
++                kset = None
++            else:
++                kset = set(int(x) for x in self.args.kda_layers.split(","))
++            # rank0 拷预训练 q/k/v/o(surgery-init);其余 rank empty-weights,FSDP sync_module_states 广播 rank0
++            kdaify_chameleon(model, layers=kset, init_from_softmax=(self.dp_rank == 0))
++            if self.args.use_attnres:
++                attnres_ify_chameleon(model, groups=self.args.attnres_groups)
++
+         return model, None
+ 
+     def _item_processor_func(self) -> ItemProcessorBase:
