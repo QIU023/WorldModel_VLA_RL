@@ -60,16 +60,28 @@ class KDAttention(nn.Module):
         g = fused_kda_gate(g_raw, self.A_log.float(), dt_bias=self.dt_bias.float())
         beta = self.b_proj(x).float().sigmoid()
 
-        # past_key_value: 用 dict 存 KDA recurrent state(非标准 HF Cache，自管理）
-        init_state = None
-        if use_cache and isinstance(past_key_value, dict):
-            init_state = past_key_value.get(self.layer_idx)
-        recurrent = (init_state is not None) or (T <= 64)
-        fn = fused_recurrent_kda if recurrent else chunk_kda
-        o, final = fn(q=q, k=k, v=v, g=g, beta=beta, initial_state=init_state,
-                      output_final_state=use_cache, use_qk_l2norm_in_kernel=True, cu_seqlens=None)
-        if use_cache and isinstance(past_key_value, dict):
-            past_key_value[self.layer_idx] = final
+        # KDA recurrent-state caching for incremental decode. HF generate() passes a DynamicCache
+        # (NOT our dict) + 1 token/step → the old `isinstance(...,dict)` check missed it → init_state
+        # stayed None every step → KDA lost all context → garbage gen (LIBERO closed-loop 0%).
+        # Fix: keep the fixed-size recurrent state on the MODULE (greedy/batch-1 decode). Prefill
+        # (cache_position[0]==0) resets; each decode step carries state forward → O(1)/step AND correct.
+        if use_cache:
+            if cache_position is not None:
+                cp0 = int(cache_position.reshape(-1)[0])
+                is_prefill = (cp0 == 0)
+            else:
+                is_prefill = (T > 1)
+            init_state = None if is_prefill else getattr(self, "_kda_state", None)
+            recurrent = (init_state is not None) or (T <= 64)
+            fn = fused_recurrent_kda if recurrent else chunk_kda
+            o, final = fn(q=q, k=k, v=v, g=g, beta=beta, initial_state=init_state,
+                          output_final_state=True, use_qk_l2norm_in_kernel=True, cu_seqlens=None)
+            self._kda_state = final
+            if isinstance(past_key_value, dict):   # legacy dict-cache path (kept for non-HF callers)
+                past_key_value[self.layer_idx] = final
+        else:
+            o, _ = chunk_kda(q=q, k=k, v=v, g=g, beta=beta, initial_state=None,
+                             output_final_state=False, use_qk_l2norm_in_kernel=True, cu_seqlens=None)
 
         g_out = rearrange(self.g_b(self.g_a(x)), "b t (h d) -> b t h d", h=H).float()
         o = self.o_norm(o.float()) * torch.sigmoid(g_out)

@@ -4,8 +4,9 @@
 set -e
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri/
-export MUJOCO_GL=egl
-export PYOPENGL_PLATFORM=egl
+# CPU software rendering (osmesa): EGL GPU contention SIGABRTs with 2 concurrent procs; osmesa is stable.
+export MUJOCO_GL=osmesa
+export PYOPENGL_PLATFORM=osmesa
 export PYTHONPATH=/home/wm-vla-rl/_ext/LIBERO:/home/wm-vla-rl/_ext/WorldVLA/worldvla:/home/wm-vla-rl/_ext/WorldVLA/worldvla/libero_util:${PYTHONPATH}
 
 CKPT_ROOT=output_libero_256/kda_2gpu_bs16
@@ -21,11 +22,14 @@ data_config_train=../configs/libero_256_all/his_2_all_10_img_only_ck_10_1a2i.yam
 data_config_val_ind=../configs/libero_256_all/his_2_val_ind_10_img_only_ck_10_1a2i.yaml
 data_config_val_ood=../configs/libero_256_all/his_2_val_ood_10_img_only_ck_10_1a2i.yaml
 
-base_exp_name=eval_kda_libero10_his2imgonly_ck10_1a2i
+HALF=${HALF:-0}
+N_TRIALS=${N_TRIALS:-50}
+PORT=${PORT:-29507}
+base_exp_name=eval_${MODELTAG:-kda}_libero10_his2imgonly_ck10_1a2i_half${HALF}
 base_output_dir=output_libero_256/"$base_exp_name"
 mkdir -p "$base_output_dir"
 
-/home/venv/libero/bin/torchrun --nnodes=1 --nproc_per_node=1 --master_port=29507 ../eval_solver_libero_256.py \
+/home/venv/libero/bin/torchrun --nnodes=1 --nproc_per_node=1 --master_port=${PORT} ../eval_solver_libero_256.py \
     --device ${DEVICE} \
     --task_suite_name libero_10 \
     --his 2h_1a_img_only \
@@ -33,6 +37,8 @@ mkdir -p "$base_output_dir"
     --resume_path "$RESUME" \
     --eval_only True \
     --model_size 7B \
+    --half ${HALF} \
+    --n_trials ${N_TRIALS} \
     --batch_size 4 \
     --accum_iter 1 \
     --epochs 10 \
@@ -50,5 +56,5 @@ mkdir -p "$base_output_dir"
     --dropout ${dropout} \
     --z_loss_weight ${z_loss_weight} \
     --ckpt_max_keep 0 \
-    --attn_type kda --kda_layers kimi --use_attnres --attnres_groups 8 \
+    ${ATTN_ARGS:---attn_type kda --kda_layers kimi --use_attnres --attnres_groups 8} \
     2>&1 | tee "$base_output_dir"/output.log
