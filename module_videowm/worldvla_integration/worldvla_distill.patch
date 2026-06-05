@@ -1,0 +1,250 @@
+diff --git a/worldvla/pretrain_solver_awm_w_ck.py b/worldvla/pretrain_solver_awm_w_ck.py
+index a6da6c6..a17ef7a 100644
+--- a/worldvla/pretrain_solver_awm_w_ck.py
++++ b/worldvla/pretrain_solver_awm_w_ck.py
+@@ -46,6 +46,23 @@ class Solver(PretrainSolverBase_ck):
+         parser.add_argument("--dropout", type=float, default=0.0)
+         parser.add_argument("--z_loss_weight", type=float, default=0.0)
+         parser.add_argument("--model_size", type=str, default="7B", choices=["7B", "34B"])
++        # KDA + AttnRes surgery(时间轴线性化 + 深度轴跨层残差)
++        parser.add_argument("--attn_type", type=str, default="sdpa", choices=["sdpa", "kda"])
++        parser.add_argument("--kda_layers", type=str, default="kimi", help="kimi(3:1)/all/逗号索引")
++        parser.add_argument("--use_attnres", action="store_true", default=False)
++        parser.add_argument("--attnres_groups", type=int, default=8)
++        # resume KDA model weights from a trained ckpt but with a FRESH optimizer (the saved Adam
++        # state from the boundary-crash was corrupt → NaN on auto_resume). eval-style load.
++        parser.add_argument("--kda_resume_ckpt", type=str, default=None)
++        # distillation (frozen SDPA teacher -> KDA student): action-token logit-KD (VITA-VLA/ActDistill
++        # style) targets the diagnosed action gap; the LM CE is image-token-dominated so action tokens
++        # alone recover slowly. Teacher loaded lazily (replicated, frozen) on first train step.
++        parser.add_argument("--distill", action="store_true", default=False)
++        parser.add_argument("--teacher_ckpt", type=str, default=None, help="frozen SDPA SOTA ckpt")
++        parser.add_argument("--kd_weight", type=float, default=1.0, help="logit-KD loss weight")
++        parser.add_argument("--kd_temp", type=float, default=1.0, help="KD temperature")
++        parser.add_argument("--kd_action_only", action="store_true", default=False,
++                            help="restrict logit-KD to action-token positions")
+         return parser
+ 
+     def _model_func(
+@@ -80,8 +97,56 @@ class Solver(PretrainSolverBase_ck):
+ 
+         del model.model.vqmodel
+ 
++        if self.args.attn_type == "kda":               # surgery:时间轴 KDA(75% Kimi)+ 深度轴 AttnRes
++            import sys as _sys
++            _sys.path.insert(0, "/home/wm-vla-rl/module_videowm")
++            from kdaify_chameleon import kdaify_chameleon, attnres_ify_chameleon, kimi_kda_layers
++            nl = model.config.num_hidden_layers
++            if self.args.kda_layers == "kimi":
++                kset = kimi_kda_layers(nl)
++            elif self.args.kda_layers == "all":
++                kset = None
++            else:
++                kset = set(int(x) for x in self.args.kda_layers.split(","))
++            # rank0 拷预训练 q/k/v/o(surgery-init);其余 rank empty-weights,FSDP sync_module_states 广播 rank0
++            kdaify_chameleon(model, layers=kset, init_from_softmax=(self.dp_rank == 0))
++            if self.args.use_attnres:
++                attnres_ify_chameleon(model, groups=self.args.attnres_groups)
++            # load trained KDA weights (rank0 has the real model; FSDP broadcasts to other ranks).
++            if self.args.kda_resume_ckpt and self.dp_rank == 0:
++                import glob as _glob, os as _os
++                from safetensors.torch import load_file as _lf
++                sd = {}
++                for f in sorted(_glob.glob(_os.path.join(self.args.kda_resume_ckpt, "model-*.safetensors"))):
++                    sd.update(_lf(f))
++                sd = {k: v.to(torch.bfloat16) for k, v in sd.items()}
++                miss, unexp = model.load_state_dict(sd, strict=False)
++                miss = [m for m in miss if "vqmodel" not in m]
++                print(f"[KDA resume-ckpt] loaded {len(sd)} tensors | miss(non-vq)={len(miss)} unexp={len(unexp)}")
++
+         return model, None
+ 
++    def build_teacher(self):
++        """Lazily build the frozen SDPA teacher (replicated full model on the local device, no FSDP,
++        no optimizer/grad). ~14GB/GPU bf16. Called once on the first distillation train step."""
++        dev = next(self.model.parameters()).device
++        teacher = ChameleonXLLMXForConditionalGeneration_ck.from_pretrained(
++            self.args.teacher_ckpt,
++            max_position_embeddings=self.args.max_seq_len,
++            mask_image_logits=self.args.mask_image_logits,
++            dropout=0.0,
++            z_loss_weight=0.0,
++            torch_dtype=torch.bfloat16,
++            device_map="cpu",
++        )
++        if hasattr(teacher.model, "vqmodel"):
++            del teacher.model.vqmodel
++        teacher = teacher.to(dev).eval()
++        for p in teacher.parameters():
++            p.requires_grad_(False)
++        self.logger.info(f"[distill] frozen SDPA teacher loaded on {dev} from {self.args.teacher_ckpt}")
++        return teacher
++
+     def _item_processor_func(self) -> ItemProcessorBase:
+         return ItemProcessor()
+ 
+diff --git a/xllmx/solvers/pretrain/pretrain_ck.py b/xllmx/solvers/pretrain/pretrain_ck.py
+index ff0ac6a..2e930aa 100644
+--- a/xllmx/solvers/pretrain/pretrain_ck.py
++++ b/xllmx/solvers/pretrain/pretrain_ck.py
+@@ -124,8 +124,8 @@ class PretrainSolverBase_ck(ABC):
+         else:
+             self.log_writer = None
+         
+-        self.item_processor = FlexARItemProcessor(target_size=288)
+-        self.item_processor_action = ItemProcessor(target_size=256)
++        self.item_processor = FlexARItemProcessor(tokenizer_path="/home/wm-vla-rl/_ext/worldvla_ckpts/combined_tokenizer/", target_size=288)
++        self.item_processor_action = ItemProcessor(target_size=256)  # 自带 combined_tokenizer 路径(pre_tokenize_action.py)
+         # self.tokenizer_fast = AutoProcessor.from_pretrained("physical-intelligence/fast", trust_remote_code=True)
+ 
+         gc.collect()
+@@ -566,24 +566,47 @@ class PretrainSolverBase_ck(ABC):
+         """
+ 
+         def _load_optimizer():
+-            opt_state_world_size = len(
+-                [x for x in os.listdir(resume_path) if x.startswith("optimizer.") and x.endswith(".pth")]
++            from torch.distributed.fsdp import (
++                FullOptimStateDictConfig,
++                FullStateDictConfig,
++                FullyShardedDataParallel as FSDP,
++                StateDictType,
+             )
+-            assert opt_state_world_size == dist.get_world_size(), (
+-                f"Resuming from a checkpoint with unmatched world size "
+-                f"({dist.get_world_size()} vs. {opt_state_world_size}) "
+-                f"is currently not supported."
+-            )
+-            self.logger.info(f"Resuming optimizer states from: {self.args.resume_path}")
+-            self.optimizer.load_state_dict(
+-                torch.load(
+-                    os.path.join(
+-                        resume_path,
+-                        f"optimizer.{dist.get_rank():05d}-of-{dist.get_world_size():05d}.pth",
+-                    ),
+-                    map_location="cpu",
++
++            full_path = os.path.join(resume_path, "optimizer.full.pth")
++            if os.path.exists(full_path):
++                # FQN-based FULL optim state → remapped to this run's sharding by FSDP (robust to
++                # surgery rebuild / resharding). Replaces the fragile per-rank LOCAL load that NaN'd.
++                self.logger.info(f"Resuming optimizer (FQN full) from: {resume_path}")
++                full_osd = torch.load(full_path, map_location="cpu")
++                with FSDP.state_dict_type(
++                    self.model,
++                    StateDictType.FULL_STATE_DICT,
++                    FullStateDictConfig(rank0_only=True, offload_to_cpu=True),
++                    FullOptimStateDictConfig(rank0_only=True, offload_to_cpu=True),
++                ):
++                    sharded_osd = FSDP.optim_state_dict_to_load(self.model, self.optimizer, full_osd)
++                self.optimizer.load_state_dict(sharded_osd)
++            else:
++                # legacy per-rank LOCAL format (fragile under surgery; kept for old ckpts only)
++                opt_state_world_size = len(
++                    [x for x in os.listdir(resume_path) if x.startswith("optimizer.") and x.endswith(".pth")]
++                )
++                assert opt_state_world_size == dist.get_world_size(), (
++                    f"Resuming from a checkpoint with unmatched world size "
++                    f"({dist.get_world_size()} vs. {opt_state_world_size}) "
++                    f"is currently not supported."
++                )
++                self.logger.info(f"Resuming optimizer (legacy LOCAL) from: {self.args.resume_path}")
++                self.optimizer.load_state_dict(
++                    torch.load(
++                        os.path.join(
++                            resume_path,
++                            f"optimizer.{dist.get_rank():05d}-of-{dist.get_world_size():05d}.pth",
++                        ),
++                        map_location="cpu",
++                    )
+                 )
+-            )
+             for param_group in self.optimizer.param_groups:
+                 param_group["lr"] = self.args.lr
+                 param_group["weight_decay"] = self.args.wd
+@@ -833,6 +856,18 @@ class PretrainSolverBase_ck(ABC):
+                 "tf32": contextlib.nullcontext(),
+             }[self.args.precision]:
+                 c_loss, additional_loss_dict, logits, hidden_states, labels_c = self.model(input_ids=examples, labels=labels, output_hidden_states=True, training=True, att_mask=True)
++            # distillation: frozen SDPA teacher -> KDA student logit-KD (added to the weighted loss dict)
++            if getattr(self.args, "distill", False):
++                if getattr(self, "teacher", None) is None:
++                    self.teacher = self.build_teacher()
++                import sys as _sys
++                _sys.path.insert(0, "/home/wm-vla-rl/module_videowm")
++                from kda_distill import logit_kd_loss
++                with torch.no_grad():
++                    t_out = self.teacher(input_ids=examples, labels=labels, output_hidden_states=True, training=True, att_mask=True)
++                    teacher_logits = t_out[2]
++                kd = logit_kd_loss(logits, teacher_logits, labels_c, T=self.args.kd_temp, action_only=self.args.kd_action_only)
++                additional_loss_dict["kd_loss"] = (kd, self.args.kd_weight)
+             loss = c_loss
+             for add_loss, weight in additional_loss_dict.values():
+                 loss = loss + add_loss * weight
+@@ -1319,6 +1354,18 @@ class PretrainSolverBase_ck(ABC):
+                 "tf32": contextlib.nullcontext(),
+             }[self.args.precision]:
+                 c_loss, additional_loss_dict, logits, hidden_states, labels_c = self.model(input_ids=examples, labels=labels, output_hidden_states=True, training=True, att_mask=True)
++            # distillation: frozen SDPA teacher -> KDA student logit-KD (added to the weighted loss dict)
++            if getattr(self.args, "distill", False):
++                if getattr(self, "teacher", None) is None:
++                    self.teacher = self.build_teacher()
++                import sys as _sys
++                _sys.path.insert(0, "/home/wm-vla-rl/module_videowm")
++                from kda_distill import logit_kd_loss
++                with torch.no_grad():
++                    t_out = self.teacher(input_ids=examples, labels=labels, output_hidden_states=True, training=True, att_mask=True)
++                    teacher_logits = t_out[2]
++                kd = logit_kd_loss(logits, teacher_logits, labels_c, T=self.args.kd_temp, action_only=self.args.kd_action_only)
++                additional_loss_dict["kd_loss"] = (kd, self.args.kd_weight)
+             loss = c_loss
+             for add_loss, weight in additional_loss_dict.values():
+                 loss = loss + add_loss * weight
+diff --git a/xllmx/util/ckpt.py b/xllmx/util/ckpt.py
+index b275a43..ad17a45 100644
+--- a/xllmx/util/ckpt.py
++++ b/xllmx/util/ckpt.py
+@@ -6,7 +6,12 @@ from typing import Dict, Optional
+ 
+ import torch
+ from torch import distributed as dist
+-from torch.distributed.fsdp import FullStateDictConfig, FullyShardedDataParallel as FSDP, StateDictType
++from torch.distributed.fsdp import (
++    FullOptimStateDictConfig,
++    FullStateDictConfig,
++    FullyShardedDataParallel as FSDP,
++    StateDictType,
++)
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -96,18 +101,21 @@ def save(
+         _save_model()
+         logger.info("model saved")
+ 
+-    # save optimizer
++    # save optimizer — FQN-based FULL optim state (consolidated on rank0). The previous
++    # LOCAL_STATE_DICT per-rank format aligned by flat-param SHARD position, which silently
++    # mis-maps Adam moments when the model is rebuilt via surgery (kdaify+attnres) on resume →
++    # exploding first step → NaN. optim_state_dict() keys by FQN → robust to rebuild/resharding.
+     if optimizer is not None:
+         with FSDP.state_dict_type(
+             model,
+-            StateDictType.LOCAL_STATE_DICT,
++            StateDictType.FULL_STATE_DICT,
++            FullStateDictConfig(rank0_only=True, offload_to_cpu=True),
++            FullOptimStateDictConfig(rank0_only=True, offload_to_cpu=True),
+         ):
+-            opt_path = os.path.join(
+-                save_dir,
+-                f"optimizer.{dist.get_rank():05d}-of-{dist.get_world_size():05d}.pth",
+-            )
+-            torch.save(optimizer.state_dict(), opt_path)
+-            logger.info("optimizer saved")
++            full_osd = FSDP.optim_state_dict(model, optimizer)
++        if is_main_process:
++            torch.save(full_osd, os.path.join(save_dir, "optimizer.full.pth"))
++            logger.info("optimizer saved (FQN full)")
+     else:
+         logger.info("optimizer is None, skip saving")
+ 
