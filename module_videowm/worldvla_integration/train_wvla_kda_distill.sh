@@ -11,10 +11,12 @@ export HF_HOME=/home/.hf_home TOKENIZERS_PARALLELISM=false
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 SOTA=/home/wm-vla-rl/_ext/worldvla_ckpts/model_256/libero_10
 BEST=output_libero_256/kda_2gpu_bs16/epoch0   # clean 1-epoch KDA adapt (no distill contamination)
-OUT=output_libero_256/kda_distill_std
+OUT=output_libero_256/kda_distill_vita
 lr=${LR:-5e-6}; min_lr=${MIN_LR:-5e-7}; wd=0.1; dropout=0.05; zlw=1e-5
-# STANDARD recipe: LM CE + all-token logit-KD (KL, temp 2, lambda 1) + attention-output MSE (lambda 1).
-EPOCHS=${EPOCHS:-8}; KD_WEIGHT=${KD_WEIGHT:-1.0}; KD_TEMP=${KD_TEMP:-2.0}; ATTN_MSE=${ATTN_MSE:-1.0}
+# VERIFIED-standard recipe (no self-invented loss): LM CE + ARL2 self-attn-output MSE (linearization
+# transfer) + VITA-VLA action-token last-layer hidden-state MSE (action distillation). No logit-KD.
+EPOCHS=${EPOCHS:-8}; KD_WEIGHT=${KD_WEIGHT:-0.0}; KD_TEMP=${KD_TEMP:-2.0}
+ATTN_MSE=${ATTN_MSE:-1.0}; ACTION_HIDDEN=${ACTION_HIDDEN:-1.0}
 mkdir -p "$OUT"
 
 for attempt in $(seq 1 60); do
@@ -43,7 +45,7 @@ for attempt in $(seq 1 60); do
     --max_seq_len 4096 --unmask_image_logits \
     --attn_type kda --kda_layers kimi --use_attnres --attnres_groups 8 \
     --distill --teacher_ckpt "$SOTA" --kd_weight $KD_WEIGHT --kd_temp $KD_TEMP \
-    --attn_mse_weight $ATTN_MSE
+    --attn_mse_weight $ATTN_MSE --action_hidden_weight $ACTION_HIDDEN
   code=$?
   echo "===== attempt $attempt exited code $code @ $(date) ====="
   [ $code -eq 0 ] && echo "TRAIN_KDA_DISTILL_DONE clean" && break

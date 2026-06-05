@@ -85,6 +85,21 @@ def action_weighted_ce(
     return (per_tok * w).sum() / denom
 
 
+def action_hidden_mse(
+    student_hidden: torch.Tensor,   # [B, T, D] last-layer hidden states (student / KDA)
+    teacher_hidden: torch.Tensor,   # [B, T, D] last-layer hidden states (teacher / SDPA, frozen)
+    labels: torch.Tensor,           # [B, T]
+    ignore_index: int = -100,
+) -> torch.Tensor:
+    """VITA-VLA (2510.09607) Eq.3 action distillation: MSE between teacher and student LAST-LAYER
+    hidden states at ACTION-token positions. (Teacher/student are same-dim here, so the paper's
+    action-mapper MLP M is identity.) Targets the action gap with a verified, citable loss."""
+    mask = action_token_mask(labels) & (labels != ignore_index)
+    if mask.sum() == 0:
+        return student_hidden.new_zeros(())
+    return F.mse_loss(student_hidden[mask].float(), teacher_hidden[mask].float())
+
+
 def attn_output_mse(student_outs: dict, teacher_outs: dict, layer_ids) -> torch.Tensor:
     """ARL2/LoLCATs-style: mean ||student_o - teacher_o||^2 over the linearized (KDA) layers.
 
