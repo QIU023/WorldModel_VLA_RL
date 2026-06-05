@@ -1,8 +1,23 @@
+diff --git a/worldvla/model/modeling_xllmx_chameleon_ck.py b/worldvla/model/modeling_xllmx_chameleon_ck.py
+index c58fcfe..b210604 100644
+--- a/worldvla/model/modeling_xllmx_chameleon_ck.py
++++ b/worldvla/model/modeling_xllmx_chameleon_ck.py
+@@ -25,6 +25,10 @@ class ChameleonXLLMXForConditionalGeneration_ck(ChameleonForConditionalGeneratio
+         self.init_input_ids = None
+         self.is_calibrating = False # For Pruning Calibration Model
+ 
++    def get_trainable_params(self):
++        # 全参 full-FT(改架构不能 lora)。返回 named params → only_save_trainable 只存模型(~14G)非含优化器(66G)
++        return dict(self.named_parameters())
++
+     def forward(self, input_ids=None, labels=None, training=False, att_mask=True, **kwargs):
+ 
+         if not training:
 diff --git a/worldvla/pretrain_solver_awm_w_ck.py b/worldvla/pretrain_solver_awm_w_ck.py
-index a6da6c6..a17ef7a 100644
+index a6da6c6..d55a534 100644
 --- a/worldvla/pretrain_solver_awm_w_ck.py
 +++ b/worldvla/pretrain_solver_awm_w_ck.py
-@@ -46,6 +46,23 @@ class Solver(PretrainSolverBase_ck):
+@@ -46,6 +46,28 @@ class Solver(PretrainSolverBase_ck):
          parser.add_argument("--dropout", type=float, default=0.0)
          parser.add_argument("--z_loss_weight", type=float, default=0.0)
          parser.add_argument("--model_size", type=str, default="7B", choices=["7B", "34B"])
@@ -23,10 +38,15 @@ index a6da6c6..a17ef7a 100644
 +        parser.add_argument("--kd_temp", type=float, default=1.0, help="KD temperature")
 +        parser.add_argument("--kd_action_only", action="store_true", default=False,
 +                            help="restrict logit-KD to action-token positions")
++        parser.add_argument("--attn_mse_weight", type=float, default=0.0,
++                            help="ARL2/MOHAWK-style per-layer hidden-state MSE on the KDA layers (0=off)")
++        # disk-constrained: skip the ~56G FQN optimizer in ckpts (model-only, 14G). Resume warm-starts
++        # the model + fresh optimizer (constant lr → momentum loss is minor; crashes are rare at bs4).
++        parser.add_argument("--no_save_optimizer", action="store_true", default=False)
          return parser
  
      def _model_func(
-@@ -80,8 +97,56 @@ class Solver(PretrainSolverBase_ck):
+@@ -80,8 +102,88 @@ class Solver(PretrainSolverBase_ck):
  
          del model.model.vqmodel
  
@@ -78,13 +98,45 @@ index a6da6c6..a17ef7a 100644
 +        for p in teacher.parameters():
 +            p.requires_grad_(False)
 +        self.logger.info(f"[distill] frozen SDPA teacher loaded on {dev} from {self.args.teacher_ckpt}")
++        # ARL2-faithful: hook the self-ATTENTION sublayer outputs (y_l) on the KDA layers of both
++        # student and teacher, so attn_mse aligns hybrid-attn output -> softmax-attn output (NOT the
++        # full hidden state). self._student_attn / self._teacher_attn are filled during each forward.
++        if getattr(self.args, "attn_mse_weight", 0.0) > 0:
++            import re
++            from kdaify_chameleon import kimi_kda_layers
++            nl = teacher.config.num_hidden_layers
++            if self.args.kda_layers == "kimi":
++                kset = kimi_kda_layers(nl)
++            elif self.args.kda_layers == "all":
++                kset = set(range(nl))
++            else:
++                kset = set(int(x) for x in self.args.kda_layers.split(","))
++            self._kd_attn_layers = kset
++            self._student_attn, self._teacher_attn = {}, {}
++
++            def _mk_hook(store, idx):
++                def _hook(module, inp, out):
++                    store[idx] = out[0] if isinstance(out, (tuple, list)) else out
++                return _hook
++
++            pat = re.compile(r"layers\.(\d+)\.(?:inner\.)?self_attn$")
++            for name, mod in self.model.named_modules():
++                m = pat.search(name)
++                if m and int(m.group(1)) in kset:
++                    mod.register_forward_hook(_mk_hook(self._student_attn, int(m.group(1))))
++            for name, mod in teacher.named_modules():
++                m = pat.search(name)
++                if m and int(m.group(1)) in kset:
++                    mod.register_forward_hook(_mk_hook(self._teacher_attn, int(m.group(1))))
++            self.logger.info(f"[distill] ARL2 attn-output hooks on {len(kset)} KDA layers "
++                             f"(student {len([1 for n,_ in self.model.named_modules() if pat.search(n) and int(pat.search(n).group(1)) in kset])})")
 +        return teacher
 +
      def _item_processor_func(self) -> ItemProcessorBase:
          return ItemProcessor()
  
 diff --git a/xllmx/solvers/pretrain/pretrain_ck.py b/xllmx/solvers/pretrain/pretrain_ck.py
-index ff0ac6a..2e930aa 100644
+index ff0ac6a..2006046 100644
 --- a/xllmx/solvers/pretrain/pretrain_ck.py
 +++ b/xllmx/solvers/pretrain/pretrain_ck.py
 @@ -124,8 +124,8 @@ class PretrainSolverBase_ck(ABC):
@@ -162,7 +214,7 @@ index ff0ac6a..2e930aa 100644
              for param_group in self.optimizer.param_groups:
                  param_group["lr"] = self.args.lr
                  param_group["weight_decay"] = self.args.wd
-@@ -833,6 +856,18 @@ class PretrainSolverBase_ck(ABC):
+@@ -833,6 +856,26 @@ class PretrainSolverBase_ck(ABC):
                  "tf32": contextlib.nullcontext(),
              }[self.args.precision]:
                  c_loss, additional_loss_dict, logits, hidden_states, labels_c = self.model(input_ids=examples, labels=labels, output_hidden_states=True, training=True, att_mask=True)
@@ -172,16 +224,24 @@ index ff0ac6a..2e930aa 100644
 +                    self.teacher = self.build_teacher()
 +                import sys as _sys
 +                _sys.path.insert(0, "/home/wm-vla-rl/module_videowm")
-+                from kda_distill import logit_kd_loss
++                from kda_distill import logit_kd_loss, attn_output_mse
 +                with torch.no_grad():
 +                    t_out = self.teacher(input_ids=examples, labels=labels, output_hidden_states=True, training=True, att_mask=True)
 +                    teacher_logits = t_out[2]
++                    teacher_hidden = t_out[3]
 +                kd = logit_kd_loss(logits, teacher_logits, labels_c, T=self.args.kd_temp, action_only=self.args.kd_action_only)
 +                additional_loss_dict["kd_loss"] = (kd, self.args.kd_weight)
++                # ARL2-faithful: MSE between hybrid (KDA) and softmax (teacher) self-ATTENTION outputs,
++                # captured by the forward hooks set up in build_teacher (filled during both forwards).
++                if getattr(self.args, "attn_mse_weight", 0.0) > 0 and getattr(self, "_student_attn", None):
++                    kset = self._kd_attn_layers
++                    a_mse = attn_output_mse(self._student_attn, self._teacher_attn, kset)
++                    additional_loss_dict["attn_mse"] = (a_mse, self.args.attn_mse_weight)
++                    self._student_attn, self._teacher_attn = {}, {}
              loss = c_loss
              for add_loss, weight in additional_loss_dict.values():
                  loss = loss + add_loss * weight
-@@ -1319,6 +1354,18 @@ class PretrainSolverBase_ck(ABC):
+@@ -1319,6 +1362,26 @@ class PretrainSolverBase_ck(ABC):
                  "tf32": contextlib.nullcontext(),
              }[self.args.precision]:
                  c_loss, additional_loss_dict, logits, hidden_states, labels_c = self.model(input_ids=examples, labels=labels, output_hidden_states=True, training=True, att_mask=True)
@@ -191,17 +251,25 @@ index ff0ac6a..2e930aa 100644
 +                    self.teacher = self.build_teacher()
 +                import sys as _sys
 +                _sys.path.insert(0, "/home/wm-vla-rl/module_videowm")
-+                from kda_distill import logit_kd_loss
++                from kda_distill import logit_kd_loss, attn_output_mse
 +                with torch.no_grad():
 +                    t_out = self.teacher(input_ids=examples, labels=labels, output_hidden_states=True, training=True, att_mask=True)
 +                    teacher_logits = t_out[2]
++                    teacher_hidden = t_out[3]
 +                kd = logit_kd_loss(logits, teacher_logits, labels_c, T=self.args.kd_temp, action_only=self.args.kd_action_only)
 +                additional_loss_dict["kd_loss"] = (kd, self.args.kd_weight)
++                # ARL2-faithful: MSE between hybrid (KDA) and softmax (teacher) self-ATTENTION outputs,
++                # captured by the forward hooks set up in build_teacher (filled during both forwards).
++                if getattr(self.args, "attn_mse_weight", 0.0) > 0 and getattr(self, "_student_attn", None):
++                    kset = self._kd_attn_layers
++                    a_mse = attn_output_mse(self._student_attn, self._teacher_attn, kset)
++                    additional_loss_dict["attn_mse"] = (a_mse, self.args.attn_mse_weight)
++                    self._student_attn, self._teacher_attn = {}, {}
              loss = c_loss
              for add_loss, weight in additional_loss_dict.values():
                  loss = loss + add_loss * weight
 diff --git a/xllmx/util/ckpt.py b/xllmx/util/ckpt.py
-index b275a43..ad17a45 100644
+index b275a43..67748c3 100644
 --- a/xllmx/util/ckpt.py
 +++ b/xllmx/util/ckpt.py
 @@ -6,7 +6,12 @@ from typing import Dict, Optional
@@ -218,7 +286,7 @@ index b275a43..ad17a45 100644
  
  logger = logging.getLogger(__name__)
  
-@@ -96,18 +101,21 @@ def save(
+@@ -96,18 +101,24 @@ def save(
          _save_model()
          logger.info("model saved")
  
@@ -227,6 +295,9 @@ index b275a43..ad17a45 100644
 +    # LOCAL_STATE_DICT per-rank format aligned by flat-param SHARD position, which silently
 +    # mis-maps Adam moments when the model is rebuilt via surgery (kdaify+attnres) on resume →
 +    # exploding first step → NaN. optim_state_dict() keys by FQN → robust to rebuild/resharding.
++    if optimizer is not None and getattr(args, "no_save_optimizer", False):
++        logger.info("no_save_optimizer set, skip optimizer (model-only ckpt; resume warm-starts model + fresh optim)")
++        optimizer = None
      if optimizer is not None:
          with FSDP.state_dict_type(
              model,
