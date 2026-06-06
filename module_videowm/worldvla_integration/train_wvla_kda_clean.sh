@@ -18,6 +18,9 @@ OUT=${OUT:-output_libero_256/kda_50clean}
 PORT=${PORT:-30093}
 lr=${LR:-5e-6}; min_lr=${MIN_LR:-5e-7}; wd=0.1; dropout=0.05; zlw=1e-5; EPOCHS=${EPOCHS:-4}
 ATTN_MSE=${ATTN_MSE:-1.0}; ACTION_HIDDEN=${ACTION_HIDDEN:-1.0}; KD_WEIGHT=${KD_WEIGHT:-0.0}
+BS=${BS:-6}; ACCUM=${ACCUM:-2}
+FREEZE_ARG=""; [ "${FREEZE:-0}" = "1" ] && FREEZE_ARG="--freeze_base"   # param-efficient (freeze base)
+[ "${LORA:-0}" = "1" ] && FREEZE_ARG="$FREEZE_ARG --lora_qkvo --lora_r ${LORA_R:-32}"  # + LoRA on q/k/v/o
 mkdir -p "$OUT"
 
 for attempt in $(seq 1 80); do
@@ -25,6 +28,9 @@ for attempt in $(seq 1 80); do
   if [ -n "$LATEST" ] && ls "$LATEST"/optimizer.full.pth >/dev/null 2>&1; then
     RESUME_ARGS="--kda_resume_ckpt $LATEST"                   # FQN auto_resume: Adam momentum + lr state survive
     echo "===== attempt $attempt: FQN auto_resume from $LATEST @ $(date) ====="
+  elif [ -n "$SEED" ]; then
+    RESUME_ARGS="--no_auto_resume --kda_resume_ckpt $SEED"    # warm-start model from a prior-stage ckpt, fresh FQN optim
+    echo "===== attempt $attempt: warm-start SEED $SEED (fresh optim) @ $(date) ====="
   else
     RESUME_ARGS="--no_auto_resume"                            # surgery-init from SOTA (truly from scratch)
     echo "===== attempt $attempt: surgery-init (from scratch) @ $(date) ====="
@@ -32,7 +38,7 @@ for attempt in $(seq 1 80); do
   /home/venv/libero/bin/torchrun --nnodes=1 --nproc_per_node=2 --master_port=$PORT ../pretrain_solver_awm_w_ck.py \
     --init_from "$SOTA" $RESUME_ARGS \
     --disable_length_clustering --ablation 0 --model_size 7B \
-    --batch_size 6 --accum_iter 2 \
+    --batch_size $BS --accum_iter $ACCUM $FREEZE_ARG \
     --epochs $EPOCHS --warmup_epochs 0.05 \
     --lr $lr --min_lr $min_lr --wd $wd --clip_grad 4 \
     --dropout $dropout --z_loss_weight $zlw \

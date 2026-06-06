@@ -1,8 +1,8 @@
 diff --git a/worldvla/pretrain_solver_awm_w_ck.py b/worldvla/pretrain_solver_awm_w_ck.py
-index a6da6c6..f7c9e01 100644
+index a6da6c6..3237f20 100644
 --- a/worldvla/pretrain_solver_awm_w_ck.py
 +++ b/worldvla/pretrain_solver_awm_w_ck.py
-@@ -46,6 +46,30 @@ class Solver(PretrainSolverBase_ck):
+@@ -46,6 +46,34 @@ class Solver(PretrainSolverBase_ck):
          parser.add_argument("--dropout", type=float, default=0.0)
          parser.add_argument("--z_loss_weight", type=float, default=0.0)
          parser.add_argument("--model_size", type=str, default="7B", choices=["7B", "34B"])
@@ -11,6 +11,10 @@ index a6da6c6..f7c9e01 100644
 +        parser.add_argument("--kda_layers", type=str, default="kimi", help="kimi(3:1)/all/逗号索引")
 +        parser.add_argument("--use_attnres", action="store_true", default=False)
 +        parser.add_argument("--attnres_groups", type=int, default=8)
++        # parameter-efficient (LoLCATs/ARL2): freeze base, train only KDA gated-delta + AttnRes params
++        parser.add_argument("--freeze_base", action="store_true", default=False)
++        parser.add_argument("--lora_qkvo", action="store_true", default=False)   # LoRA on KDA q/k/v/o
++        parser.add_argument("--lora_r", type=int, default=32)
 +        # resume KDA model weights from a trained ckpt but with a FRESH optimizer (the saved Adam
 +        # state from the boundary-crash was corrupt → NaN on auto_resume). eval-style load.
 +        parser.add_argument("--kda_resume_ckpt", type=str, default=None)
@@ -33,14 +37,14 @@ index a6da6c6..f7c9e01 100644
          return parser
  
      def _model_func(
-@@ -80,8 +104,97 @@ class Solver(PretrainSolverBase_ck):
+@@ -80,8 +108,118 @@ class Solver(PretrainSolverBase_ck):
  
          del model.model.vqmodel
  
 +        if self.args.attn_type == "kda":               # surgery:时间轴 KDA(75% Kimi)+ 深度轴 AttnRes
 +            import sys as _sys
 +            _sys.path.insert(0, "/home/wm-vla-rl/module_videowm")
-+            from kdaify_chameleon import kdaify_chameleon, attnres_ify_chameleon, kimi_kda_layers
++            from kdaify_chameleon import kdaify_chameleon, attnres_ify_chameleon, kimi_kda_layers, lora_ify_kda
 +            nl = model.config.num_hidden_layers
 +            if self.args.kda_layers == "kimi":
 +                kset = kimi_kda_layers(nl)
@@ -52,6 +56,10 @@ index a6da6c6..f7c9e01 100644
 +            kdaify_chameleon(model, layers=kset, init_from_softmax=(self.dp_rank == 0))
 +            if self.args.use_attnres:
 +                attnres_ify_chameleon(model, groups=self.args.attnres_groups)
++            # LoRA on q/k/v/o of the KDA layers (LoLCATs/ARL2): gives attn-transfer the q/k flexibility
++            # that gating alone lacks. Run on all ranks (structure); rank0 init broadcast via FSDP.
++            if getattr(self.args, "lora_qkvo", False):
++                lora_ify_kda(model, r=self.args.lora_r, alpha=2 * self.args.lora_r)
 +            # load trained KDA weights (rank0 has the real model; FSDP broadcasts to other ranks).
 +            if self.args.kda_resume_ckpt and self.dp_rank == 0:
 +                import glob as _glob, os as _os
@@ -63,6 +71,23 @@ index a6da6c6..f7c9e01 100644
 +                miss, unexp = model.load_state_dict(sd, strict=False)
 +                miss = [m for m in miss if "vqmodel" not in m]
 +                print(f"[KDA resume-ckpt] loaded {len(sd)} tensors | miss(non-vq)={len(miss)} unexp={len(unexp)}")
++
++            # Parameter-efficient linearization (LoLCATs/ARL2): freeze base, train ONLY the NEW
++            # gated-delta machinery (b_proj/f_*/g_*/A_log/dt_bias/o_norm) + cross-layer AttnRes.
++            # q/k/v/o stay frozen (= softmax teacher) in Stage-1; LoRA-adapt them in Stage-2 instead.
++            if getattr(self.args, "freeze_base", False):
++                _kda_keys = ("self_attn.b_proj", "self_attn.f_a", "self_attn.f_b", "self_attn.g_a",
++                             "self_attn.g_b", "self_attn.A_log", "self_attn.dt_bias", "self_attn.o_norm",
++                             "attnres_coord")
++                _nt = 0; _ntot = 0
++                for _n, _p in model.named_parameters():
++                    _ntot += _p.numel()
++                    if any(_k in _n for _k in _kda_keys):
++                        _p.requires_grad_(True); _nt += _p.numel()
++                    else:
++                        _p.requires_grad_(False)
++                if self.dp_rank == 0:
++                    print(f"[freeze_base] trainable {_nt/1e6:.1f}M / {_ntot/1e9:.3f}B = {100*_nt/max(_ntot,1):.2f}%")
 +
          return model, None
  
@@ -132,7 +157,7 @@ index a6da6c6..f7c9e01 100644
          return ItemProcessor()
  
 diff --git a/xllmx/solvers/pretrain/pretrain_ck.py b/xllmx/solvers/pretrain/pretrain_ck.py
-index ff0ac6a..3182218 100644
+index ff0ac6a..e567656 100644
 --- a/xllmx/solvers/pretrain/pretrain_ck.py
 +++ b/xllmx/solvers/pretrain/pretrain_ck.py
 @@ -124,8 +124,8 @@ class PretrainSolverBase_ck(ABC):
@@ -146,7 +171,38 @@ index ff0ac6a..3182218 100644
          # self.tokenizer_fast = AutoProcessor.from_pretrained("physical-intelligence/fast", trust_remote_code=True)
  
          gc.collect()
-@@ -566,24 +566,47 @@ class PretrainSolverBase_ck(ABC):
+@@ -291,8 +291,17 @@ class PretrainSolverBase_ck(ABC):
+         unwrapped_model, tokenizer = self._model_func(init_from)
+         if hasattr(unwrapped_model, "get_trainable_params"):
+             trainable_params = dict(unwrapped_model.get_trainable_params())
++            # param-efficient linearization (LoLCATs/ARL2): when --freeze_base, override the trainable
++            # set to ONLY the new KDA gated-delta machinery + cross-layer AttnRes; freeze everything else.
++            _freeze = getattr(self.args, "freeze_base", False)
++            _kda_keys = ("self_attn.b_proj", "self_attn.f_a", "self_attn.f_b", "self_attn.g_a",
++                         "self_attn.g_b", "self_attn.A_log", "self_attn.dt_bias", "self_attn.o_norm",
++                         "attnres_coord")
+             for key, param in unwrapped_model.named_parameters():
+-                if key in trainable_params or 'lora' in key:
++                _is_train = (key in trainable_params or 'lora' in key)
++                if _freeze:
++                    _is_train = ('lora' in key) or any(_k in key for _k in _kda_keys)
++                if _is_train:
+                     param.requires_grad = True
+                     promote_param_to_fp32(param)
+                 else:
+@@ -382,8 +391,9 @@ class PretrainSolverBase_ck(ABC):
+ 
+         self.logger.info(f"Wrapped model: \n{str(model)}")
+ 
+-        # Setup optimizer
+-        opt = torch.optim.AdamW(model.parameters(), lr=self.args.lr, weight_decay=self.args.wd, betas=(0.9, 0.95))
++        # Setup optimizer (only trainable params -> with --freeze_base, no Adam states for the frozen 7B)
++        _trainable = [p for p in model.parameters() if p.requires_grad]
++        opt = torch.optim.AdamW(_trainable, lr=self.args.lr, weight_decay=self.args.wd, betas=(0.9, 0.95))
+ 
+         return model, tokenizer, opt
+ 
+@@ -566,24 +576,47 @@ class PretrainSolverBase_ck(ABC):
          """
  
          def _load_optimizer():
@@ -210,7 +266,7 @@ index ff0ac6a..3182218 100644
              for param_group in self.optimizer.param_groups:
                  param_group["lr"] = self.args.lr
                  param_group["weight_decay"] = self.args.wd
-@@ -606,7 +629,9 @@ class PretrainSolverBase_ck(ABC):
+@@ -606,7 +639,9 @@ class PretrainSolverBase_ck(ABC):
              resume_path, f"additional.{dist.get_rank():05d}-of-{dist.get_world_size():05d}.pth"
          )
          if os.path.exists(additional_rank_specific):
@@ -221,7 +277,7 @@ index ff0ac6a..3182218 100644
              if "metric_logger" in additional_rank_specific:
                  self.metric_logger_to_resume = additional_rank_specific["metric_logger"]
                  self.logger.info("metric logger resumed")
-@@ -833,6 +858,30 @@ class PretrainSolverBase_ck(ABC):
+@@ -833,6 +868,30 @@ class PretrainSolverBase_ck(ABC):
                  "tf32": contextlib.nullcontext(),
              }[self.args.precision]:
                  c_loss, additional_loss_dict, logits, hidden_states, labels_c = self.model(input_ids=examples, labels=labels, output_hidden_states=True, training=True, att_mask=True)
@@ -252,7 +308,7 @@ index ff0ac6a..3182218 100644
              loss = c_loss
              for add_loss, weight in additional_loss_dict.values():
                  loss = loss + add_loss * weight
-@@ -958,6 +1007,33 @@ class PretrainSolverBase_ck(ABC):
+@@ -958,6 +1017,33 @@ class PretrainSolverBase_ck(ABC):
                  "tf32": contextlib.nullcontext(),
              }[self.args.precision]:
                  c_loss, additional_loss_dict, logits, hidden_states, labels_c = self.model(input_ids=examples, labels=labels, output_hidden_states=True, training=True, loss_weights=loss_weights, att_mask=True)
@@ -286,7 +342,7 @@ index ff0ac6a..3182218 100644
              loss = c_loss
              for add_loss, weight in additional_loss_dict.values():
                  loss = loss + add_loss * weight
-@@ -968,7 +1044,7 @@ class PretrainSolverBase_ck(ABC):
+@@ -968,7 +1054,7 @@ class PretrainSolverBase_ck(ABC):
                  sys.exit(1)
  
              effective_loss = loss / accum_iter
@@ -295,7 +351,7 @@ index ff0ac6a..3182218 100644
              accuracies_action, accuracies_image, l1_loss = self.calculate_accuracies(labels_c, logits)
                  
              for i in range(len(accuracies_action)):
-@@ -1319,6 +1395,30 @@ class PretrainSolverBase_ck(ABC):
+@@ -1319,6 +1405,30 @@ class PretrainSolverBase_ck(ABC):
                  "tf32": contextlib.nullcontext(),
              }[self.args.precision]:
                  c_loss, additional_loss_dict, logits, hidden_states, labels_c = self.model(input_ids=examples, labels=labels, output_hidden_states=True, training=True, att_mask=True)

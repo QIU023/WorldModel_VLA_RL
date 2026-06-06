@@ -55,3 +55,40 @@ def kdaify_chameleon(model, layers=None, init_from_softmax=False):
 def attnres_ify_chameleon(model, groups=8):
     """跨层 Block-AttnRes(深度轴)—— 复用 llama 版(对 base.layers 通用)。32 层 groups=8 → lpb=4。"""
     return attnres_ify_llama(model, groups=groups)
+
+
+import math
+
+
+class LoRALinear(torch.nn.Module):
+    """Wrap a frozen nn.Linear with a low-rank adapter: y = base(x) + (B(A(x)))*scale.
+    LoLCATs/ARL2 attention-transfer needs q/k flexibility (gating alone can't match softmax outputs).
+    base.weight is frozen; lora_A/lora_B are trainable (names contain 'lora' -> picked up by the
+    solver's trainable filter). lora_B zero-init => starts as identity (no perturbation)."""
+    def __init__(self, base, r=32, alpha=64):
+        super().__init__()
+        self.base = base
+        self.base.weight.requires_grad_(False)
+        din, dout = base.in_features, base.out_features
+        self.lora_A = torch.nn.Linear(din, r, bias=False)
+        self.lora_B = torch.nn.Linear(r, dout, bias=False)
+        torch.nn.init.kaiming_uniform_(self.lora_A.weight, a=math.sqrt(5))
+        torch.nn.init.zeros_(self.lora_B.weight)
+        self.scale = alpha / r
+
+    def forward(self, x):
+        return self.base(x) + self.lora_B(self.lora_A(x)) * self.scale
+
+
+def lora_ify_kda(model, r=32, alpha=64):
+    """Inject LoRA on q/k/v/o of every KDAttention module (the linearized layers). Run on ALL ranks
+    (structure must match for FSDP); rank0's lora init is broadcast via sync_module_states."""
+    n = 0
+    for mod in model.modules():
+        if isinstance(mod, KDAttention):
+            for proj in ("q_proj", "k_proj", "v_proj", "o_proj"):
+                if hasattr(mod, proj) and not isinstance(getattr(mod, proj), LoRALinear):
+                    setattr(mod, proj, LoRALinear(getattr(mod, proj), r=r, alpha=alpha))
+                    n += 1
+    print(f"[lora_ify] wrapped {n} q/k/v/o projections with LoRA (r={r}, alpha={alpha})")
+    return model
