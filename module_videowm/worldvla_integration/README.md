@@ -35,6 +35,30 @@ Eval must rebuild the **exact surgery module tree before loading weights** (the 
 Validated: **loaded 523/523 tensors, missing(non-vq)=0, unexpected=0**; KDA triton kernel executes;
 LIBERO-Long rollouts run. Compared against SDPA SOTA (`model_256/libero_10`, paper 59% @256px).
 
+## 🚨 CRITICAL distillation fix (2026-06-06) — `worldvla_distill.patch`, `train_wvla_kda_clean.sh`
+**All prior "distillation" runs were silently plain CE — the distill loss never executed.** The solver
+dispatches `run_with_eval_awm_w()` → `train_one_epoch_awm_w()`, but the distill block had only been
+added to `train_one_epoch_awm()` (NEVER CALLED). So `act_hidden_mse`/`attn_mse` were 0; only `closs`
+logged. This **invalidates the earlier "distillation plateaus action-L1 at ~0.13 / is glacial"
+conclusions — those were plain-CE-from-broken.** The real VITA action-hidden distillation (which
+directly targets the first action token) had never been tested. Fixes:
+1. Port the distill block into the actually-called `train_one_epoch_awm_w`.
+2. Teacher forward must **not** take `loss_weights` — its `CrossEntropyLoss(weight=loss_weights)` puts
+   the class-weight on CPU → device crash. We only use teacher logits/hidden anyway.
+3. Student attn-output hooks: match by **`isinstance(KDAttention)`**, not a name regex — FSDP inserts
+   `_fsdp_wrapped_module.` so `layers.N.self_attn$` matched 0 student modules (teacher, non-FSDP, 16).
+4. Clear the hook dicts **in-place** (`_student_attn.clear()`), not by rebinding `= {}` — the hook
+   closures captured the dict objects, so rebinding orphaned them and `attn_mse` went stale after iter 1.
+5. Resume path `torch.load(additional.*.pth, weights_only=False)` (MetricLogger global) so crash
+   auto-resume works.
+
+**Clean recipe (`train_wvla_kda_clean.sh`):** surgery-init from scratch, **FQN optimizer from step 0,
+persistent** (auto_resume on crash, never fresh-optim again), loss = LM CE + ARL² attn-output MSE(1) +
+VITA action-hidden MSE(1), bs6 accum2 (~127GB, teacher resident), cosine lr, 4 epochs (~1.3 days,
+steady ~1.7s/iter), NO mid-run kills. Verified all three losses non-zero & varying. Parametrized by
+`ARR_KDA` (50%=layers 14-29; 75%=`3,5,6,8,11..30` keeping softmax top-8 action-critical
+[0,1,2,4,7,9,10,31]) + `OUT`. action_0 target = SDPA teacher L1 0.018 / acc 0.64.
+
 ## Env fixes (gitignored `_ext`, recorded here for reproducibility)
 - `LIBERO/.../benchmark/__init__.py::get_task_init_states` → `torch.load(..., weights_only=False)`
   (torch≥2.6 default `weights_only=True` blocks the numpy init_states).

@@ -1,5 +1,5 @@
 diff --git a/worldvla/pretrain_solver_awm_w_ck.py b/worldvla/pretrain_solver_awm_w_ck.py
-index a6da6c6..5e0c356 100644
+index a6da6c6..f7c9e01 100644
 --- a/worldvla/pretrain_solver_awm_w_ck.py
 +++ b/worldvla/pretrain_solver_awm_w_ck.py
 @@ -46,6 +46,30 @@ class Solver(PretrainSolverBase_ck):
@@ -33,7 +33,7 @@ index a6da6c6..5e0c356 100644
          return parser
  
      def _model_func(
-@@ -80,8 +104,88 @@ class Solver(PretrainSolverBase_ck):
+@@ -80,8 +104,97 @@ class Solver(PretrainSolverBase_ck):
  
          del model.model.vqmodel
  
@@ -106,24 +106,33 @@ index a6da6c6..5e0c356 100644
 +                    store[idx] = out[0] if isinstance(out, (tuple, list)) else out
 +                return _hook
 +
-+            pat = re.compile(r"layers\.(\d+)\.(?:inner\.)?self_attn$")
++            # student KDA modules: match by TYPE (FSDP/AttnRes wrapping makes names unreliable -> strict
++            # name regex matched 0). The KDAttention instances survive wrapping; extract layer idx from name.
++            from kda_llama import KDAttention
++            lpat = re.compile(r"layers\.(\d+)\.")
++            ns = 0
 +            for name, mod in self.model.named_modules():
-+                m = pat.search(name)
-+                if m and int(m.group(1)) in kset:
-+                    mod.register_forward_hook(_mk_hook(self._student_attn, int(m.group(1))))
++                if isinstance(mod, KDAttention):
++                    m = lpat.search(name)
++                    if m and int(m.group(1)) in kset:
++                        mod.register_forward_hook(_mk_hook(self._student_attn, int(m.group(1))))
++                        ns += 1
++            # teacher (plain replicated softmax model, not FSDP): match self_attn by name
++            tpat = re.compile(r"layers\.(\d+)\.(?:.*\.)?self_attn$")
++            nt = 0
 +            for name, mod in teacher.named_modules():
-+                m = pat.search(name)
++                m = tpat.search(name)
 +                if m and int(m.group(1)) in kset:
 +                    mod.register_forward_hook(_mk_hook(self._teacher_attn, int(m.group(1))))
-+            self.logger.info(f"[distill] ARL2 attn-output hooks on {len(kset)} KDA layers "
-+                             f"(student {len([1 for n,_ in self.model.named_modules() if pat.search(n) and int(pat.search(n).group(1)) in kset])})")
++                    nt += 1
++            self.logger.info(f"[distill] ARL2 attn-output hooks: student {ns}, teacher {nt} (kset {len(kset)})")
 +        return teacher
 +
      def _item_processor_func(self) -> ItemProcessorBase:
          return ItemProcessor()
  
 diff --git a/xllmx/solvers/pretrain/pretrain_ck.py b/xllmx/solvers/pretrain/pretrain_ck.py
-index ff0ac6a..ef2a0e4 100644
+index ff0ac6a..3182218 100644
 --- a/xllmx/solvers/pretrain/pretrain_ck.py
 +++ b/xllmx/solvers/pretrain/pretrain_ck.py
 @@ -124,8 +124,8 @@ class PretrainSolverBase_ck(ABC):
@@ -201,7 +210,18 @@ index ff0ac6a..ef2a0e4 100644
              for param_group in self.optimizer.param_groups:
                  param_group["lr"] = self.args.lr
                  param_group["weight_decay"] = self.args.wd
-@@ -833,6 +856,30 @@ class PretrainSolverBase_ck(ABC):
+@@ -606,7 +629,9 @@ class PretrainSolverBase_ck(ABC):
+             resume_path, f"additional.{dist.get_rank():05d}-of-{dist.get_world_size():05d}.pth"
+         )
+         if os.path.exists(additional_rank_specific):
+-            additional_rank_specific = torch.load(additional_rank_specific, map_location="cpu")
++            # weights_only=False: this pickle holds an xllmx MetricLogger object (PyTorch 2.6 default
++            # weights_only=True rejects it). Trusted local ckpt. Needed for crash-auto-resume to work.
++            additional_rank_specific = torch.load(additional_rank_specific, map_location="cpu", weights_only=False)
+             if "metric_logger" in additional_rank_specific:
+                 self.metric_logger_to_resume = additional_rank_specific["metric_logger"]
+                 self.logger.info("metric logger resumed")
+@@ -833,6 +858,30 @@ class PretrainSolverBase_ck(ABC):
                  "tf32": contextlib.nullcontext(),
              }[self.args.precision]:
                  c_loss, additional_loss_dict, logits, hidden_states, labels_c = self.model(input_ids=examples, labels=labels, output_hidden_states=True, training=True, att_mask=True)
@@ -228,11 +248,54 @@ index ff0ac6a..ef2a0e4 100644
 +                    kset = self._kd_attn_layers
 +                    a_mse = attn_output_mse(self._student_attn, self._teacher_attn, kset)
 +                    additional_loss_dict["attn_mse"] = (a_mse, self.args.attn_mse_weight)
-+                    self._student_attn, self._teacher_attn = {}, {}
++                    self._student_attn.clear(); self._teacher_attn.clear()  # in-place: hook closures hold these dict objects
              loss = c_loss
              for add_loss, weight in additional_loss_dict.values():
                  loss = loss + add_loss * weight
-@@ -1319,6 +1366,30 @@ class PretrainSolverBase_ck(ABC):
+@@ -958,6 +1007,33 @@ class PretrainSolverBase_ck(ABC):
+                 "tf32": contextlib.nullcontext(),
+             }[self.args.precision]:
+                 c_loss, additional_loss_dict, logits, hidden_states, labels_c = self.model(input_ids=examples, labels=labels, output_hidden_states=True, training=True, loss_weights=loss_weights, att_mask=True)
++            # distillation (this is the ACTIVELY-CALLED train loop via run_with_eval_awm_w):
++            # frozen SDPA teacher -> KDA student. LM CE + ARL2 self-attn-output MSE + VITA-VLA action-hidden MSE.
++            if getattr(self.args, "distill", False):
++                if getattr(self, "teacher", None) is None:
++                    self.teacher = self.build_teacher()
++                import sys as _sys
++                _sys.path.insert(0, "/home/wm-vla-rl/module_videowm")
++                from kda_distill import logit_kd_loss, attn_output_mse, action_hidden_mse
++                with torch.no_grad():
++                    # NO loss_weights to the teacher: we only use its logits/hidden; the weighted
++                    # CrossEntropyLoss(weight=loss_weights) path puts the class-weight on CPU -> device crash.
++                    t_out = self.teacher(input_ids=examples, labels=labels, output_hidden_states=True, training=True, att_mask=True)
++                    teacher_logits = t_out[2]
++                    teacher_hidden = t_out[3]
++                if getattr(self.args, "kd_weight", 0.0) > 0:   # logit-KD (optional)
++                    kd = logit_kd_loss(logits, teacher_logits, labels_c, T=self.args.kd_temp, action_only=self.args.kd_action_only)
++                    additional_loss_dict["kd_loss"] = (kd, self.args.kd_weight)
++                if getattr(self.args, "action_hidden_weight", 0.0) > 0:   # VITA-VLA action distillation
++                    ah = action_hidden_mse(hidden_states, teacher_hidden, labels_c)
++                    additional_loss_dict["act_hidden_mse"] = (ah, self.args.action_hidden_weight)
++                # ARL2-faithful: MSE between hybrid (KDA) and softmax (teacher) self-ATTENTION outputs,
++                # captured by the forward hooks set up in build_teacher (filled during both forwards).
++                if getattr(self.args, "attn_mse_weight", 0.0) > 0 and getattr(self, "_student_attn", None):
++                    kset = self._kd_attn_layers
++                    a_mse = attn_output_mse(self._student_attn, self._teacher_attn, kset)
++                    additional_loss_dict["attn_mse"] = (a_mse, self.args.attn_mse_weight)
++                    self._student_attn.clear(); self._teacher_attn.clear()  # in-place: hook closures hold these dict objects
+             loss = c_loss
+             for add_loss, weight in additional_loss_dict.values():
+                 loss = loss + add_loss * weight
+@@ -968,7 +1044,7 @@ class PretrainSolverBase_ck(ABC):
+                 sys.exit(1)
+ 
+             effective_loss = loss / accum_iter
+-            
++
+             accuracies_action, accuracies_image, l1_loss = self.calculate_accuracies(labels_c, logits)
+                 
+             for i in range(len(accuracies_action)):
+@@ -1319,6 +1395,30 @@ class PretrainSolverBase_ck(ABC):
                  "tf32": contextlib.nullcontext(),
              }[self.args.precision]:
                  c_loss, additional_loss_dict, logits, hidden_states, labels_c = self.model(input_ids=examples, labels=labels, output_hidden_states=True, training=True, att_mask=True)
@@ -259,7 +322,7 @@ index ff0ac6a..ef2a0e4 100644
 +                    kset = self._kd_attn_layers
 +                    a_mse = attn_output_mse(self._student_attn, self._teacher_attn, kset)
 +                    additional_loss_dict["attn_mse"] = (a_mse, self.args.attn_mse_weight)
-+                    self._student_attn, self._teacher_attn = {}, {}
++                    self._student_attn.clear(); self._teacher_attn.clear()  # in-place: hook closures hold these dict objects
              loss = c_loss
              for add_loss, weight in additional_loss_dict.values():
                  loss = loss + add_loss * weight
