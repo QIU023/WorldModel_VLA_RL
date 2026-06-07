@@ -1,0 +1,1033 @@
+diff --git a/worldvla/data/pretoken.py b/worldvla/data/pretoken.py
+index c091b22..7afffc0 100644
+--- a/worldvla/data/pretoken.py
++++ b/worldvla/data/pretoken.py
+@@ -3,7 +3,7 @@ import argparse  # 导入 argparse 模块
+ from multiprocessing import Process
+ 
+ def run_script(rank, all_ranks, data_t, task, resolution): # 添加 task 参数
+-    os.environ["CUDA_VISIBLE_DEVICES"] = str(rank % 4)
++    os.environ["CUDA_VISIBLE_DEVICES"] = str(rank % 2)  # 2 GPU(原 4)
+     print(f"Starting running on {rank}.")
+ 
+     # 使用 f-string 动态构建文件名和目录名
+@@ -11,8 +11,8 @@ def run_script(rank, all_ranks, data_t, task, resolution): # 添加 task 参数
+     os.system(f"python -u pre_tokenize_action_local.py "
+                f"--splits={all_ranks} "
+                f"--rank={rank} "
+-               f"--in_filename ../processed_data/convs/libero_{task}_his_2_{data_t}_img_only_ck_5_{resolution}.json "
+-               f"--out_dir ../processed_data/libero_{task}_his_2_{data_t}_img_only_ck_5_{resolution} "
++               f"--in_filename ../processed_data/convs/libero_{task}_his_2_{data_t}_img_only_ck_10_{resolution}.json "
++               f"--out_dir ../processed_data/libero_{task}_his_2_{data_t}_img_only_ck_10_{resolution} "
+                f"--target_size {resolution}")
+ 
+     os.system(f"python -u pre_tokenize_action_local.py "
+@@ -40,7 +40,7 @@ if __name__ == "__main__":
+ 
+     for data_t in data_type:
+         processes = []
+-        all_ranks = 32
++        all_ranks = 2
+         for i in range(all_ranks):
+             # 将解析到的 task 传递给 run_script 函数
+             p = Process(target=run_script, args=(i, all_ranks, data_t, args.task, args.resolution))
+diff --git a/worldvla/eval_solver_libero_256.py b/worldvla/eval_solver_libero_256.py
+index f15374b..8e5f70d 100644
+--- a/worldvla/eval_solver_libero_256.py
++++ b/worldvla/eval_solver_libero_256.py
+@@ -32,7 +32,7 @@ from libero_util.robot_utils import (
+     set_seed_everywhere,
+ )
+ 
+-from libero_util.Chameleon_utils import get_action_Chameleon_dis_awm_ck
++from libero_util.Chameleon_utils import get_action_Chameleon_dis_awm_ck, get_action_Chameleon_cont_awm_ck
+ from data.pre_tokenize_action import ItemProcessor
+ import time
+ import xllmx.util as util
+@@ -75,6 +75,15 @@ class Solver(PretrainSolverBase):
+         parser.add_argument("--his", type=str, default="1h_1a", choices=["1h_1a", "2h_1a", "4h_1a", "2h_2a", "4h_4a", "1h_1a_img_only", "2h_1a_img_only", "4h_1a_img_only"])
+         parser.add_argument("--action_steps", default=25, type=int, help="actions to be excuted when multiple actions are generated")
+         parser.add_argument("--half", default=0, type=int, help="which part of test set will be evaluated")
++        parser.add_argument("--n_trials", default=50, type=int, help="episodes per task (<=50 init states)")
++        parser.add_argument("--shard_idx", default=0, type=int, help="this proc's shard index (round-robin over tasks)")
++        parser.add_argument("--n_shards", default=1, type=int, help="total shards; >1 enables parallel task-sharded eval (overrides --half)")
++        # KDA + AttnRes surgery (match training-time architecture before loading weights)
++        parser.add_argument("--attn_type", type=str, default="sdpa", choices=["sdpa", "kda"])
++        parser.add_argument("--kda_layers", type=str, default="kimi", help="kimi(3:1)/all/逗号索引")
++        parser.add_argument("--use_attnres", action="store_true", default=False)
++        parser.add_argument("--attnres_groups", type=int, default=8)
++        parser.add_argument("--cont_head", action="store_true", default=False)  # continuous action head decode
+         return parser
+ 
+     def _model_func(
+@@ -95,6 +104,43 @@ class Solver(PretrainSolverBase):
+             device_map="cpu",
+         )
+ 
++        if getattr(self.args, "attn_type", "sdpa") == "kda":
++            # The ckpt's safetensors carry KDA + AttnRes module keys (model.layers.N.inner.self_attn.*).
++            # from_pretrained above (standard arch) only matched the non-layer keys; rebuild the exact
++            # surgery tree, then overwrite ALL weights from the trained sharded safetensors.
++            import sys as _sys, glob as _glob, os as _os
++            _sys.path.insert(0, "/home/wm-vla-rl/module_videowm")
++            from kdaify_chameleon import kdaify_chameleon, attnres_ify_chameleon, kimi_kda_layers
++            from safetensors.torch import load_file as _load_file
++
++            if hasattr(model.model, "vqmodel"):
++                del model.model.vqmodel
++            nl = model.config.num_hidden_layers
++            if self.args.kda_layers == "kimi":
++                kset = kimi_kda_layers(nl)
++            elif self.args.kda_layers == "all":
++                kset = None
++            else:
++                kset = set(int(x) for x in self.args.kda_layers.split(","))
++            kdaify_chameleon(model, layers=kset, init_from_softmax=False)
++            if self.args.use_attnres:
++                attnres_ify_chameleon(model, groups=self.args.attnres_groups)
++            if getattr(self.args, "cont_head", False):   # attach BEFORE load so cont_action_head.* keys match
++                from kdaify_chameleon import attach_cont_head
++                attach_cont_head(model)
++
++            sd = {}
++            for f in sorted(_glob.glob(_os.path.join(init_from, "model-*.safetensors"))):
++                sd.update(_load_file(f))
++            sd = {k: v.to(torch.bfloat16) for k, v in sd.items()}
++            missing, unexpected = model.load_state_dict(sd, strict=False)
++            missing = [m for m in missing if "vqmodel" not in m]
++            self.logger.info(f"[KDA eval] loaded {len(sd)} tensors | missing(non-vq)={len(missing)} unexpected={len(unexpected)}")
++            if missing:
++                self.logger.info(f"[KDA eval] sample missing: {missing[:8]}")
++            if unexpected:
++                self.logger.info(f"[KDA eval] sample unexpected: {unexpected[:8]}")
++
+         return model, None
+ 
+     def _item_processor_func(self) -> ItemProcessor:
+@@ -152,7 +198,11 @@ class Solver(PretrainSolverBase):
+         total_episodes, total_successes = 0, 0
+         # for task_id in tqdm.tqdm(range(3)):
+         
+-        if args.half == 0:
++        if getattr(args, "n_shards", 1) > 1:
++            # parallel task-sharded eval: proc `shard_idx` takes tasks shard_idx, shard_idx+n_shards, ...
++            episode_range = range(args.shard_idx, num_tasks_in_suite, args.n_shards)
++            print(f"[shard {args.shard_idx}/{args.n_shards}] tasks: {list(episode_range)}")
++        elif args.half == 0:
+             episode_range = range(num_tasks_in_suite)
+         elif args.half == 1:
+             episode_range = range(0, num_tasks_in_suite//2, 1)
+@@ -191,7 +241,7 @@ class Solver(PretrainSolverBase):
+             task_episodes, task_successes = 0, 0
+ 
+             # 使用 tqdm 进行进度条显示
+-            for episode_idx in tqdm.tqdm(range(50)):
++            for episode_idx in tqdm.tqdm(range(self.args.n_trials)):
+                 print(f"\nTask: {task_description}")
+ 
+                 # Reset environment
+@@ -251,16 +301,22 @@ class Solver(PretrainSolverBase):
+                         if len(actions_ck) == 0:
+                             import time
+                             start = time.time()
+-                            dis_action = get_action_Chameleon_dis_awm_ck(
+-                                self.model,
+-                                cur_img,
+-                                task_description,
+-                                item_processor,
+-                                his_img,
+-                                his_action,
+-                                self.args.his,
+-                                self.args.action_steps
+-                            )
++                            if getattr(self.args, "cont_head", False):
++                                dis_action = get_action_Chameleon_cont_awm_ck(
++                                    self.model, cur_img, task_description, item_processor,
++                                    his_img, his_action, self.args.his, self.args.action_steps,
++                                )
++                            else:
++                                dis_action = get_action_Chameleon_dis_awm_ck(
++                                    self.model,
++                                    cur_img,
++                                    task_description,
++                                    item_processor,
++                                    his_img,
++                                    his_action,
++                                    self.args.his,
++                                    self.args.action_steps
++                                )
+                             print(time.time()-start)
+                             for i in range(len(dis_action)):
+                                 actions_ck.append(dis_action[i].cpu().float().detach().numpy())
+diff --git a/worldvla/libero_util/Chameleon_utils.py b/worldvla/libero_util/Chameleon_utils.py
+index b1bb7c4..068db05 100644
+--- a/worldvla/libero_util/Chameleon_utils.py
++++ b/worldvla/libero_util/Chameleon_utils.py
+@@ -654,3 +654,47 @@ def reconstruct_img(item_processor, img):
+     g_image = item_processor.decode_image(tokens[1:-1])
+ 
+     return g_image
++
++
++def get_action_Chameleon_cont_awm_ck(model, cur_img, task_description, item_processor,
++                                     his_img, his_action, his_type, action_steps, n_chunks=10):
++    """Continuous-action-head decode (OFT/VITA style): build the img_only prompt, then autoregressively
++    append action_start(10004), forward (training branch computes model._cont_preds at all positions),
++    read the cont head at the just-appended action_start -> 7-dim NORMALIZED action; discretize it back
++    to dim tokens + action_end(15004) to keep the context faithful, repeat n_chunks. Returns list of
++    [7] normalized action tensors (eval unnorm_min_max handles denorm). Single-GPU eval -> no FSDP gather
++    issue; model._cont_preds is read directly."""
++    import numpy as _np, torch as _t
++    # prompt (mirror the dis 2h_1a_img_only / 1h / 4h variants; action:[])
++    if his_type == "2h_1a_img_only":
++        val = "What action should the robot take to " + task_description + "?" + "<|image|>" * len(his_img[-1:]) + "<|image|>"
++        imgs = his_img[-1:] + [cur_img]
++    elif his_type == "1h_1a_img_only":
++        val = "What action should the robot take to " + task_description + "?" + "<|image|>"
++        imgs = [cur_img]
++    elif his_type == "4h_1a_img_only":
++        val = "What action should the robot take to " + task_description + "?" + "<|image|>" * len(his_img[-3:]) + "<|image|>"
++        imgs = his_img[-3:] + [cur_img]
++    else:
++        raise ValueError(f"cont head decode: unsupported his_type {his_type}")
++    conv = {"conversations": [{"from": "human", "value": val}], "image": imgs, "action": []}
++    tokens = item_processor.process_item(conv, training_mode=False)
++    seq = list(tokens)
++    ACT_START = item_processor.token2id(item_processor.action_start_token)   # 10004
++    ACT_END = item_processor.token2id(item_processor.action_end_token)       # 15004
++    bins = item_processor.bins
++    actions = []
++    for _k in range(n_chunks):
++        seq = seq + [ACT_START]
++        inp = _t.tensor([seq], dtype=_t.int64, device=model.device)
++        lab = _t.full_like(inp, -100)
++        with _t.no_grad():
++            model(input_ids=inp, labels=lab, output_hidden_states=True, training=True, att_mask=True)
++        cp = model._cont_preds[0, -1].float().cpu().numpy()       # [7] at the action_start
++        arm = _np.clip(cp[:6], -1.0, 1.0)
++        grip = 2.0 * (1.0 / (1.0 + _np.exp(-cp[6]))) - 1.0        # gripper: BCE logit -> prob -> [-1,1]
++        act_norm = _np.concatenate([arm, [grip]]).astype(_np.float32)
++        actions.append(_t.tensor(act_norm))
++        dims = (_np.digitize(act_norm, bins) + ACT_START + 1).tolist()   # same discretization as process_action
++        seq = seq + dims + [ACT_END]
++    return actions
+diff --git a/worldvla/model/modeling_xllmx_chameleon_ck.py b/worldvla/model/modeling_xllmx_chameleon_ck.py
+index c58fcfe..1824324 100644
+--- a/worldvla/model/modeling_xllmx_chameleon_ck.py
++++ b/worldvla/model/modeling_xllmx_chameleon_ck.py
+@@ -25,6 +25,10 @@ class ChameleonXLLMXForConditionalGeneration_ck(ChameleonForConditionalGeneratio
+         self.init_input_ids = None
+         self.is_calibrating = False # For Pruning Calibration Model
+ 
++    def get_trainable_params(self):
++        # 全参 full-FT(改架构不能 lora)。返回 named params → only_save_trainable 只存模型(~14G)非含优化器(66G)
++        return dict(self.named_parameters())
++
+     def forward(self, input_ids=None, labels=None, training=False, att_mask=True, **kwargs):
+ 
+         if not training:
+@@ -85,6 +89,12 @@ class ChameleonXLLMXForConditionalGeneration_ck(ChameleonForConditionalGeneratio
+             z_loss = torch.logsumexp(shift_logits, dim=-1).pow(2)[valid_mask].mean()
+             additional_loss_dict["z_loss"] = (z_loss, self.config.z_loss_weight)
+         
++        # continuous action head (OFT/VITA): compute INSIDE the FSDP root forward (params gathered here;
++        # calling it from the training step after forward returns -> sharded 1-D weight crash). Stash preds
++        # [B,T,7] for the training step to index at action_start(10004) anchors. fp32 head, fp32 hidden.
++        if getattr(self, "cont_action_head", None) is not None and 'output_hidden_states' in kwargs:
++            self._cont_preds = self.cont_action_head(result[2][-1].float())
++
+         if 'output_hidden_states' in kwargs:
+             return c_loss, additional_loss_dict, result[1], result[2][-1], labels
+         else:
+diff --git a/worldvla/pretrain_solver_awm_w_ck.py b/worldvla/pretrain_solver_awm_w_ck.py
+index a6da6c6..92db253 100644
+--- a/worldvla/pretrain_solver_awm_w_ck.py
++++ b/worldvla/pretrain_solver_awm_w_ck.py
+@@ -1,3 +1,4 @@
++import os
+ import pickle
+ from typing import List, Tuple
+ 
+@@ -9,10 +10,39 @@ from xllmx.data.item_processor import ItemProcessorBase
+ from xllmx.solvers.pretrain import PretrainSolverBase_ck
+ 
+ 
++import numpy as _np
++_CONT_HEAD = os.environ.get("CONT_HEAD", "0") == "1"
++_CONT_DIR = "/home/wm-vla-rl/_ext/WorldVLA/worldvla/processed_data/cont_actions"
++
++
+ class ItemProcessor(ItemProcessorBase):
++    _cont_cache = {}
++
++    def _lookup_cont(self, src_file, pkl_id):
++        z = _np.zeros((10, 7), dtype=_np.float32)
++        # only the img_only_ck_10 world-model source has predicted 10-action chunks (clean cont map)
++        if not src_file or "img_only" not in src_file or pkl_id is None:
++            return z, 0.0
++        if "_train_" in src_file:
++            split = "train"
++        elif "_val_ind_" in src_file:
++            split = "val_ind"
++        elif "_val_ood_" in src_file:
++            split = "val_ood"
++        else:
++            return z, 0.0
++        if split not in ItemProcessor._cont_cache:
++            p = os.path.join(_CONT_DIR, f"cont_actions_{split}.npy")
++            ItemProcessor._cont_cache[split] = _np.load(p) if os.path.exists(p) else None
++        arr = ItemProcessor._cont_cache[split]
++        if arr is None or pkl_id >= len(arr):
++            return z, 0.0
++        return arr[pkl_id].astype(_np.float32), 1.0
++
+     def process_item(self, data_item: dict, training_mode=False) -> Tuple[List, List]:
+         assert training_mode
+ 
++        src_file = data_item.get("file", "") if isinstance(data_item, dict) else ""
+         if "token" in data_item and "label" in data_item:
+             data_item = data_item
+         else:
+@@ -24,6 +54,10 @@ class ItemProcessor(ItemProcessorBase):
+         labels = data_item["label"]
+         assert len(tokens) == len(labels)
+ 
++        if _CONT_HEAD:
++            cont, has = self._lookup_cont(src_file, data_item.get("id"))
++            return tokens, labels, cont, has
++
+         return tokens, labels
+ 
+     def predict_item_token_length(self, data_item: dict) -> int:
+@@ -46,6 +80,44 @@ class Solver(PretrainSolverBase_ck):
+         parser.add_argument("--dropout", type=float, default=0.0)
+         parser.add_argument("--z_loss_weight", type=float, default=0.0)
+         parser.add_argument("--model_size", type=str, default="7B", choices=["7B", "34B"])
++        # KDA + AttnRes surgery(时间轴线性化 + 深度轴跨层残差)
++        parser.add_argument("--attn_type", type=str, default="sdpa", choices=["sdpa", "kda"])
++        parser.add_argument("--kda_layers", type=str, default="kimi", help="kimi(3:1)/all/逗号索引")
++        parser.add_argument("--use_attnres", action="store_true", default=False)
++        parser.add_argument("--attnres_groups", type=int, default=8)
++        # parameter-efficient (LoLCATs/ARL2): freeze base, train only KDA gated-delta + AttnRes params
++        parser.add_argument("--freeze_base", action="store_true", default=False)
++        parser.add_argument("--lora_qkvo", action="store_true", default=False)   # LoRA on KDA q/k/v/o
++        parser.add_argument("--lora_r", type=int, default=32)
++        parser.add_argument("--lora_ffn", action="store_true", default=False)
++        # strict MOHAWK/ARL2 Stage-1: per-layer teacher-context attn-output MSE (feed teacher hidden to
++        # each student KDA layer, isolate per-layer, no CE). KDA ignores rope/mask → clean standalone input.
++        parser.add_argument("--strict_stage1", action="store_true", default=False)
++        parser.add_argument("--skip_val", action="store_true", default=False)
++        # continuous action head (OFT/VITA): regress raw normalized GT actions at action_start anchors,
++        # bypassing the discrete-token action bottleneck. cont_head module fully trained; lm_head stays frozen.
++        parser.add_argument("--cont_head", action="store_true", default=False)
++        parser.add_argument("--cont_l1_weight", type=float, default=5.0)
++        parser.add_argument("--cont_bce_weight", type=float, default=1.0)
++        # resume KDA model weights from a trained ckpt but with a FRESH optimizer (the saved Adam
++        # state from the boundary-crash was corrupt → NaN on auto_resume). eval-style load.
++        parser.add_argument("--kda_resume_ckpt", type=str, default=None)
++        # distillation (frozen SDPA teacher -> KDA student): action-token logit-KD (VITA-VLA/ActDistill
++        # style) targets the diagnosed action gap; the LM CE is image-token-dominated so action tokens
++        # alone recover slowly. Teacher loaded lazily (replicated, frozen) on first train step.
++        parser.add_argument("--distill", action="store_true", default=False)
++        parser.add_argument("--teacher_ckpt", type=str, default=None, help="frozen SDPA SOTA ckpt")
++        parser.add_argument("--kd_weight", type=float, default=1.0, help="logit-KD loss weight")
++        parser.add_argument("--kd_temp", type=float, default=1.0, help="KD temperature")
++        parser.add_argument("--kd_action_only", action="store_true", default=False,
++                            help="restrict logit-KD to action-token positions")
++        parser.add_argument("--attn_mse_weight", type=float, default=0.0,
++                            help="ARL2 per-layer self-attention-output MSE on the KDA layers (0=off)")
++        parser.add_argument("--action_hidden_weight", type=float, default=0.0,
++                            help="VITA-VLA action distillation: MSE on action-token last-layer hidden states (0=off)")
++        # disk-constrained: skip the ~56G FQN optimizer in ckpts (model-only, 14G). Resume warm-starts
++        # the model + fresh optimizer (constant lr → momentum loss is minor; crashes are rare at bs4).
++        parser.add_argument("--no_save_optimizer", action="store_true", default=False)
+         return parser
+ 
+     def _model_func(
+@@ -80,8 +152,164 @@ class Solver(PretrainSolverBase_ck):
+ 
+         del model.model.vqmodel
+ 
++        if self.args.attn_type == "kda":               # surgery:时间轴 KDA(75% Kimi)+ 深度轴 AttnRes
++            import sys as _sys
++            _sys.path.insert(0, "/home/wm-vla-rl/module_videowm")
++            from kdaify_chameleon import kdaify_chameleon, attnres_ify_chameleon, kimi_kda_layers, lora_ify_kda, attach_cont_head
++            nl = model.config.num_hidden_layers
++            if self.args.kda_layers == "kimi":
++                kset = kimi_kda_layers(nl)
++            elif self.args.kda_layers == "all":
++                kset = None
++            else:
++                kset = set(int(x) for x in self.args.kda_layers.split(","))
++            # rank0 拷预训练 q/k/v/o(surgery-init);其余 rank empty-weights,FSDP sync_module_states 广播 rank0
++            kdaify_chameleon(model, layers=kset, init_from_softmax=(self.dp_rank == 0))
++            if self.args.use_attnres:
++                attnres_ify_chameleon(model, groups=self.args.attnres_groups)
++            # LoRA on q/k/v/o of the KDA layers (LoLCATs/ARL2): gives attn-transfer the q/k flexibility
++            # that gating alone lacks. Run on all ranks (structure); rank0 init broadcast via FSDP.
++            if getattr(self.args, "lora_qkvo", False):
++                lora_ify_kda(model, r=self.args.lora_r, alpha=2 * self.args.lora_r, ffn=getattr(self.args,"lora_ffn",False))
++            # continuous action head (OFT/VITA): new module on action-token hidden (all ranks for FSDP structure)
++            if getattr(self.args, "cont_head", False):
++                attach_cont_head(model)
++            # load trained KDA weights (rank0 has the real model; FSDP broadcasts to other ranks).
++            if self.args.kda_resume_ckpt and self.dp_rank == 0:
++                import glob as _glob, os as _os
++                from safetensors.torch import load_file as _lf
++                sd = {}
++                for f in sorted(_glob.glob(_os.path.join(self.args.kda_resume_ckpt, "model-*.safetensors"))):
++                    sd.update(_lf(f))
++                sd = {k: v.to(torch.bfloat16) for k, v in sd.items()}
++                miss, unexp = model.load_state_dict(sd, strict=False)
++                miss = [m for m in miss if "vqmodel" not in m]
++                print(f"[KDA resume-ckpt] loaded {len(sd)} tensors | miss(non-vq)={len(miss)} unexp={len(unexp)}")
++
++            # Parameter-efficient linearization (LoLCATs/ARL2): freeze base, train ONLY the NEW
++            # gated-delta machinery (b_proj/f_*/g_*/A_log/dt_bias/o_norm) + cross-layer AttnRes.
++            # q/k/v/o stay frozen (= softmax teacher) in Stage-1; LoRA-adapt them in Stage-2 instead.
++            if getattr(self.args, "freeze_base", False):
++                _kda_keys = ("self_attn.b_proj", "self_attn.f_a", "self_attn.f_b", "self_attn.g_a",
++                             "self_attn.g_b", "self_attn.A_log", "self_attn.dt_bias", "self_attn.o_norm",
++                             "attnres_coord", "cont_action_head")
++                _nt = 0; _ntot = 0
++                for _n, _p in model.named_parameters():
++                    _ntot += _p.numel()
++                    if any(_k in _n for _k in _kda_keys):
++                        _p.requires_grad_(True); _nt += _p.numel()
++                    else:
++                        _p.requires_grad_(False)
++                if self.dp_rank == 0:
++                    print(f"[freeze_base] trainable {_nt/1e6:.1f}M / {_ntot/1e9:.3f}B = {100*_nt/max(_ntot,1):.2f}%")
++
+         return model, None
+ 
++    def build_teacher(self):
++        """Lazily build the frozen SDPA teacher (replicated full model on the local device, no FSDP,
++        no optimizer/grad). ~14GB/GPU bf16. Called once on the first distillation train step."""
++        dev = next(self.model.parameters()).device
++        teacher = ChameleonXLLMXForConditionalGeneration_ck.from_pretrained(
++            self.args.teacher_ckpt,
++            max_position_embeddings=self.args.max_seq_len,
++            mask_image_logits=self.args.mask_image_logits,
++            dropout=0.0,
++            z_loss_weight=0.0,
++            torch_dtype=torch.bfloat16,
++            device_map="cpu",
++        )
++        if hasattr(teacher.model, "vqmodel"):
++            del teacher.model.vqmodel
++        teacher = teacher.to(dev).eval()
++        for p in teacher.parameters():
++            p.requires_grad_(False)
++        self.logger.info(f"[distill] frozen SDPA teacher loaded on {dev} from {self.args.teacher_ckpt}")
++        # ARL2-faithful: hook the self-ATTENTION sublayer outputs (y_l) on the KDA layers of both
++        # student and teacher, so attn_mse aligns hybrid-attn output -> softmax-attn output (NOT the
++        # full hidden state). self._student_attn / self._teacher_attn are filled during each forward.
++        if getattr(self.args, "attn_mse_weight", 0.0) > 0 or getattr(self.args, "strict_stage1", False):
++            import re
++            from kdaify_chameleon import kimi_kda_layers
++            nl = teacher.config.num_hidden_layers
++            if self.args.kda_layers == "kimi":
++                kset = kimi_kda_layers(nl)
++            elif self.args.kda_layers == "all":
++                kset = set(range(nl))
++            else:
++                kset = set(int(x) for x in self.args.kda_layers.split(","))
++            self._kd_attn_layers = kset
++            self._student_attn, self._teacher_attn = {}, {}
++
++            def _mk_hook(store, idx):
++                def _hook(module, inp, out):
++                    store[idx] = out[0] if isinstance(out, (tuple, list)) else out
++                return _hook
++
++            # student KDA modules: match by TYPE (FSDP/AttnRes wrapping makes names unreliable -> strict
++            # name regex matched 0). The KDAttention instances survive wrapping; extract layer idx from name.
++            from kda_llama import KDAttention
++            lpat = re.compile(r"layers\.(\d+)\.")
++            ns = 0
++            for name, mod in self.model.named_modules():
++                if isinstance(mod, KDAttention):
++                    m = lpat.search(name)
++                    if m and int(m.group(1)) in kset:
++                        mod.register_forward_hook(_mk_hook(self._student_attn, int(m.group(1))))
++                        ns += 1
++            # teacher (plain replicated softmax model, not FSDP): match self_attn by name
++            tpat = re.compile(r"layers\.(\d+)\.(?:.*\.)?self_attn$")
++            nt = 0
++            for name, mod in teacher.named_modules():
++                m = tpat.search(name)
++                if m and int(m.group(1)) in kset:
++                    mod.register_forward_hook(_mk_hook(self._teacher_attn, int(m.group(1))))
++                    nt += 1
++            self.logger.info(f"[distill] ARL2 attn-output hooks: student {ns}, teacher {nt} (kset {len(kset)})")
++
++            # strict MOHAWK/ARL2 Stage-1: teacher-context per-layer. Capture each teacher self_attn INPUT
++            # (post-LN hidden) on the teacher forward; inject it as the student self_attn INPUT so every
++            # student KDA layer sees teacher context (isolated per-layer). KDA ignores rope/mask -> the
++            # raw hidden is all it needs.
++            if getattr(self.args, "strict_stage1", False):
++                self._teacher_in = {}
++
++                # decoder layers call self_attn with KEYWORD args (hidden_states=...) -> positional `args`
++                # is empty. Use with_kwargs=True and read/write hidden_states from kwargs (fallback args[0]).
++                def _mk_capture_in(store, idx):
++                    def _pre(module, args, kwargs):
++                        h = args[0] if len(args) > 0 else kwargs.get("hidden_states")
++                        store[idx] = h.detach()
++                    return _pre
++
++                def _mk_inject(src, idx):
++                    def _pre(module, args, kwargs):
++                        if idx not in src:
++                            return None
++                        h = src[idx]
++                        if len(args) > 0:
++                            return ((h.to(args[0].dtype),) + tuple(args[1:]), kwargs)
++                        kwargs = dict(kwargs)
++                        ref = kwargs.get("hidden_states")
++                        kwargs["hidden_states"] = h.to(ref.dtype) if ref is not None else h
++                        return (args, kwargs)
++                    return _pre
++
++                ti = 0
++                for name, mod in teacher.named_modules():
++                    m = tpat.search(name)
++                    if m and int(m.group(1)) in kset:
++                        mod.register_forward_pre_hook(_mk_capture_in(self._teacher_in, int(m.group(1))), with_kwargs=True)
++                        ti += 1
++                si = 0
++                for name, mod in self.model.named_modules():
++                    if isinstance(mod, KDAttention):
++                        m = lpat.search(name)
++                        if m and int(m.group(1)) in kset:
++                            mod.register_forward_pre_hook(_mk_inject(self._teacher_in, int(m.group(1))), with_kwargs=True)
++                            si += 1
++                self.logger.info(f"[strict_stage1] teacher-context hooks: capture-in {ti}, inject {si}")
++        return teacher
++
+     def _item_processor_func(self) -> ItemProcessorBase:
+         return ItemProcessor()
+ 
+diff --git a/xllmx/solvers/pretrain/pretrain_ck.py b/xllmx/solvers/pretrain/pretrain_ck.py
+index ff0ac6a..ae26fbc 100644
+--- a/xllmx/solvers/pretrain/pretrain_ck.py
++++ b/xllmx/solvers/pretrain/pretrain_ck.py
+@@ -124,8 +124,8 @@ class PretrainSolverBase_ck(ABC):
+         else:
+             self.log_writer = None
+         
+-        self.item_processor = FlexARItemProcessor(target_size=288)
+-        self.item_processor_action = ItemProcessor(target_size=256)
++        self.item_processor = FlexARItemProcessor(tokenizer_path="/home/wm-vla-rl/_ext/worldvla_ckpts/combined_tokenizer/", target_size=288)
++        self.item_processor_action = ItemProcessor(target_size=256)  # 自带 combined_tokenizer 路径(pre_tokenize_action.py)
+         # self.tokenizer_fast = AutoProcessor.from_pretrained("physical-intelligence/fast", trust_remote_code=True)
+ 
+         gc.collect()
+@@ -291,8 +291,17 @@ class PretrainSolverBase_ck(ABC):
+         unwrapped_model, tokenizer = self._model_func(init_from)
+         if hasattr(unwrapped_model, "get_trainable_params"):
+             trainable_params = dict(unwrapped_model.get_trainable_params())
++            # param-efficient linearization (LoLCATs/ARL2): when --freeze_base, override the trainable
++            # set to ONLY the new KDA gated-delta machinery + cross-layer AttnRes; freeze everything else.
++            _freeze = getattr(self.args, "freeze_base", False)
++            _kda_keys = ("self_attn.b_proj", "self_attn.f_a", "self_attn.f_b", "self_attn.g_a",
++                         "self_attn.g_b", "self_attn.A_log", "self_attn.dt_bias", "self_attn.o_norm",
++                         "attnres_coord", "cont_action_head")
+             for key, param in unwrapped_model.named_parameters():
+-                if key in trainable_params or 'lora' in key:
++                _is_train = (key in trainable_params or 'lora' in key)
++                if _freeze:
++                    _is_train = ('lora' in key) or any(_k in key for _k in _kda_keys)
++                if _is_train:
+                     param.requires_grad = True
+                     promote_param_to_fp32(param)
+                 else:
+@@ -382,8 +391,9 @@ class PretrainSolverBase_ck(ABC):
+ 
+         self.logger.info(f"Wrapped model: \n{str(model)}")
+ 
+-        # Setup optimizer
+-        opt = torch.optim.AdamW(model.parameters(), lr=self.args.lr, weight_decay=self.args.wd, betas=(0.9, 0.95))
++        # Setup optimizer (only trainable params -> with --freeze_base, no Adam states for the frozen 7B)
++        _trainable = [p for p in model.parameters() if p.requires_grad]
++        opt = torch.optim.AdamW(_trainable, lr=self.args.lr, weight_decay=self.args.wd, betas=(0.9, 0.95))
+ 
+         return model, tokenizer, opt
+ 
+@@ -566,24 +576,47 @@ class PretrainSolverBase_ck(ABC):
+         """
+ 
+         def _load_optimizer():
+-            opt_state_world_size = len(
+-                [x for x in os.listdir(resume_path) if x.startswith("optimizer.") and x.endswith(".pth")]
++            from torch.distributed.fsdp import (
++                FullOptimStateDictConfig,
++                FullStateDictConfig,
++                FullyShardedDataParallel as FSDP,
++                StateDictType,
+             )
+-            assert opt_state_world_size == dist.get_world_size(), (
+-                f"Resuming from a checkpoint with unmatched world size "
+-                f"({dist.get_world_size()} vs. {opt_state_world_size}) "
+-                f"is currently not supported."
+-            )
+-            self.logger.info(f"Resuming optimizer states from: {self.args.resume_path}")
+-            self.optimizer.load_state_dict(
+-                torch.load(
+-                    os.path.join(
+-                        resume_path,
+-                        f"optimizer.{dist.get_rank():05d}-of-{dist.get_world_size():05d}.pth",
+-                    ),
+-                    map_location="cpu",
++
++            full_path = os.path.join(resume_path, "optimizer.full.pth")
++            if os.path.exists(full_path):
++                # FQN-based FULL optim state → remapped to this run's sharding by FSDP (robust to
++                # surgery rebuild / resharding). Replaces the fragile per-rank LOCAL load that NaN'd.
++                self.logger.info(f"Resuming optimizer (FQN full) from: {resume_path}")
++                full_osd = torch.load(full_path, map_location="cpu")
++                with FSDP.state_dict_type(
++                    self.model,
++                    StateDictType.FULL_STATE_DICT,
++                    FullStateDictConfig(rank0_only=True, offload_to_cpu=True),
++                    FullOptimStateDictConfig(rank0_only=True, offload_to_cpu=True),
++                ):
++                    sharded_osd = FSDP.optim_state_dict_to_load(self.model, self.optimizer, full_osd)
++                self.optimizer.load_state_dict(sharded_osd)
++            else:
++                # legacy per-rank LOCAL format (fragile under surgery; kept for old ckpts only)
++                opt_state_world_size = len(
++                    [x for x in os.listdir(resume_path) if x.startswith("optimizer.") and x.endswith(".pth")]
++                )
++                assert opt_state_world_size == dist.get_world_size(), (
++                    f"Resuming from a checkpoint with unmatched world size "
++                    f"({dist.get_world_size()} vs. {opt_state_world_size}) "
++                    f"is currently not supported."
++                )
++                self.logger.info(f"Resuming optimizer (legacy LOCAL) from: {self.args.resume_path}")
++                self.optimizer.load_state_dict(
++                    torch.load(
++                        os.path.join(
++                            resume_path,
++                            f"optimizer.{dist.get_rank():05d}-of-{dist.get_world_size():05d}.pth",
++                        ),
++                        map_location="cpu",
++                    )
+                 )
+-            )
+             for param_group in self.optimizer.param_groups:
+                 param_group["lr"] = self.args.lr
+                 param_group["weight_decay"] = self.args.wd
+@@ -606,7 +639,9 @@ class PretrainSolverBase_ck(ABC):
+             resume_path, f"additional.{dist.get_rank():05d}-of-{dist.get_world_size():05d}.pth"
+         )
+         if os.path.exists(additional_rank_specific):
+-            additional_rank_specific = torch.load(additional_rank_specific, map_location="cpu")
++            # weights_only=False: this pickle holds an xllmx MetricLogger object (PyTorch 2.6 default
++            # weights_only=True rejects it). Trusted local ckpt. Needed for crash-auto-resume to work.
++            additional_rank_specific = torch.load(additional_rank_specific, map_location="cpu", weights_only=False)
+             if "metric_logger" in additional_rank_specific:
+                 self.metric_logger_to_resume = additional_rank_specific["metric_logger"]
+                 self.logger.info("metric logger resumed")
+@@ -720,7 +755,13 @@ class PretrainSolverBase_ck(ABC):
+ 
+             self.start_iter = 0
+             self.metric_logger_to_resume = None
+-            
++
++            # skip the post-epoch val (it OOMs at the train->val transition at bs12, and we monitor train
++            # metrics + eval LIBERO success separately). Avoids the val-crash -> launcher retry loop.
++            if getattr(self.args, "skip_val", False):
++                torch.cuda.empty_cache()
++                continue
++
+             val_stats_ind = self.val_one_epoch_awm_ind_w(
+                 epoch,
+                 self.start_iter,
+@@ -833,6 +874,56 @@ class PretrainSolverBase_ck(ABC):
+                 "tf32": contextlib.nullcontext(),
+             }[self.args.precision]:
+                 c_loss, additional_loss_dict, logits, hidden_states, labels_c = self.model(input_ids=examples, labels=labels, output_hidden_states=True, training=True, att_mask=True)
++            # distillation: frozen SDPA teacher -> KDA student logit-KD (added to the weighted loss dict)
++            if getattr(self.args, "distill", False):
++                if getattr(self, "teacher", None) is None:
++                    self.teacher = self.build_teacher()
++                import sys as _sys
++                _sys.path.insert(0, "/home/wm-vla-rl/module_videowm")
++                from kda_distill import logit_kd_loss, attn_output_mse, action_hidden_mse
++                with torch.no_grad():
++                    t_out = self.teacher(input_ids=examples, labels=labels, output_hidden_states=True, training=True, att_mask=True)
++                    teacher_logits = t_out[2]
++                    teacher_hidden = t_out[3]
++                if getattr(self.args, "kd_weight", 0.0) > 0:   # logit-KD (optional)
++                    kd = logit_kd_loss(logits, teacher_logits, labels_c, T=self.args.kd_temp, action_only=self.args.kd_action_only)
++                    additional_loss_dict["kd_loss"] = (kd, self.args.kd_weight)
++                if getattr(self.args, "action_hidden_weight", 0.0) > 0:   # VITA-VLA action distillation
++                    ah = action_hidden_mse(hidden_states, teacher_hidden, labels_c)
++                    additional_loss_dict["act_hidden_mse"] = (ah, self.args.action_hidden_weight)
++                # ARL2-faithful: MSE between hybrid (KDA) and softmax (teacher) self-ATTENTION outputs,
++                # captured by the forward hooks set up in build_teacher (filled during both forwards).
++                if getattr(self.args, "attn_mse_weight", 0.0) > 0 and getattr(self, "_student_attn", None):
++                    kset = self._kd_attn_layers
++                    a_mse = attn_output_mse(self._student_attn, self._teacher_attn, kset)
++                    additional_loss_dict["attn_mse"] = (a_mse, self.args.attn_mse_weight)
++                    self._student_attn.clear(); self._teacher_attn.clear()  # in-place: hook closures hold these dict objects
++            # continuous action head (OFT/VITA): regress raw normalized GT actions at action_start(10004)
++            # anchors (hidden_states last-layer [B,T,dim]; model right-pads 0 so examples[b] 10004 positions
++            # align). L1 on 6 arm dims + BCE on gripper. Defensive locals() so non-awm_w funcs skip safely.
++            _ca = locals().get("cont_actions"); _ch = locals().get("cont_has")
++            if getattr(self.args, "cont_head", False) and _ca is not None:
++                import torch.nn.functional as _F
++                _cp = getattr(self.model, "_cont_preds", None)
++                if _cp is None and hasattr(self.model, "module"):
++                    _cp = getattr(self.model.module, "_cont_preds", None)
++                _preds = []; _tgts = []
++                if _cp is not None:
++                    for _b in range(len(examples)):
++                        if _ch is None or float(_ch[_b]) < 0.5:
++                            continue
++                        _pos = [_j for _j, _t in enumerate(examples[_b]) if _t == 10004][:10]
++                        if not _pos:
++                            continue
++                        _pp = _cp[_b, _pos]  # [n,7], computed inside forward (FSDP-safe gather)
++                        _tg = torch.as_tensor(_ca[_b][:len(_pos)], device=_pp.device, dtype=_pp.dtype)
++                        _preds.append(_pp); _tgts.append(_tg)
++                if _preds:
++                    _P = torch.cat(_preds, 0); _T = torch.cat(_tgts, 0)
++                    _l1 = _F.l1_loss(_P[:, :6], _T[:, :6])
++                    _bce = _F.binary_cross_entropy_with_logits(_P[:, 6], (_T[:, 6] + 1) / 2)
++                    additional_loss_dict["cont_l1"] = (_l1, self.args.cont_l1_weight)
++                    additional_loss_dict["cont_bce"] = (_bce, self.args.cont_bce_weight)
+             loss = c_loss
+             for add_loss, weight in additional_loss_dict.values():
+                 loss = loss + add_loss * weight
+@@ -945,12 +1036,38 @@ class PretrainSolverBase_ck(ABC):
+             accum_counter = (accum_counter + 1) % accum_iter
+             is_gradient_accumulation_boundary = accum_counter == 0
+ 
+-            examples, labels = batch_data
++            examples = batch_data[0]; labels = batch_data[1]
++            cont_actions = batch_data[2] if len(batch_data) > 2 else None   # cont-head: per-sample [10,7] norm GT
++            cont_has = batch_data[3] if len(batch_data) > 3 else None        # cont-head: per-sample 1.0/0.0 mask
++            # proactive OOM-avoid (keep big BS, skip pathologically-long batches): mem ~ max_len*bs (padded).
++            # Decide BEFORE any forward collective + all-reduce MAX so ALL ranks skip together (DDP-safe;
++            # a try/except around backward would deadlock — one rank OOMs while others wait in grad all-reduce).
++            _skip_tok = int(os.environ.get("OOM_SKIP_TOK", "0"))
++            if _skip_tok > 0:
++                _proxy = (max((len(_e) for _e in examples), default=0)) * len(examples)
++                _sk = 1 if _proxy > _skip_tok else 0
++                if dist.is_initialized():
++                    _st = torch.tensor([_sk], device="cuda"); dist.all_reduce(_st, op=dist.ReduceOp.MAX); _sk = int(_st.item())
++                if _sk:
++                    if dist.get_rank() == 0:
++                        self.logger.info(f"[oom-skip] iter {data_iter_step}: batch proxy {_proxy} > {_skip_tok}, skipping")
++                    self.optimizer.zero_grad(set_to_none=True); torch.cuda.empty_cache(); continue
+             if is_gradient_accumulation_boundary or data_iter_step == start_iter:
+                 lr_sched.adjust_learning_rate_epoch(
+                     self.optimizer, data_iter_step / len(self.dataloader_train) + epoch, self.args
+                 )
+ 
++            # strict MOHAWK/ARL2 Stage-1: teacher forward FIRST (no_grad) to fill teacher per-layer INPUT
++            # (_teacher_in, used by the student inject pre-hooks) + OUTPUT (_teacher_attn). NO loss_weights
++            # to the teacher (its weighted CE puts class-weight on CPU -> crash; we only need its attn out).
++            if getattr(self.args, "strict_stage1", False):
++                if getattr(self, "teacher", None) is None:
++                    self.teacher = self.build_teacher()
++                # clear IN-PLACE (the capture/output hook closures hold these exact dict objects; rebinding
++                # to {} orphans them -> dicts stay empty -> _ms empty -> torch.stack crash).
++                self._teacher_in.clear(); self._teacher_attn.clear(); self._student_attn.clear()
++                with torch.no_grad():
++                    self.teacher(input_ids=examples, labels=labels, output_hidden_states=True, training=True, att_mask=True)
+             with {
+                 "bf16": torch.cuda.amp.autocast(dtype=torch.bfloat16),
+                 "fp16": torch.cuda.amp.autocast(dtype=torch.float16),
+@@ -958,6 +1075,72 @@ class PretrainSolverBase_ck(ABC):
+                 "tf32": contextlib.nullcontext(),
+             }[self.args.precision]:
+                 c_loss, additional_loss_dict, logits, hidden_states, labels_c = self.model(input_ids=examples, labels=labels, output_hidden_states=True, training=True, loss_weights=loss_weights, att_mask=True)
++            # strict Stage-1: loss = per-layer teacher-context attn-output MSE ONLY (student attn ran on
++            # injected teacher hidden -> _student_attn is teacher-context). No CE, no act_hidden.
++            if getattr(self.args, "strict_stage1", False):
++                import torch.nn.functional as _F
++                _ks = self._kd_attn_layers
++                _ms = [_F.mse_loss(self._student_attn[l].float(), self._teacher_attn[l].float())
++                       for l in _ks if l in self._student_attn and l in self._teacher_attn]
++                strict_mse = torch.stack(_ms).mean()
++                # Keep the model-output CE in the graph at x0: under FSDP, backward must traverse the model
++                # output to re-gather the (resharded) per-layer params; a loss built only from hook-captured
++                # tensors leaves lora_B etc. sharded -> "setStorage ... storage size 0" at backward.
++                c_loss = c_loss * 0.0 + strict_mse
++                additional_loss_dict = {}
++            # distillation (this is the ACTIVELY-CALLED train loop via run_with_eval_awm_w):
++            # frozen SDPA teacher -> KDA student. LM CE + ARL2 self-attn-output MSE + VITA-VLA action-hidden MSE.
++            if getattr(self.args, "distill", False) and not getattr(self.args, "strict_stage1", False):
++                if getattr(self, "teacher", None) is None:
++                    self.teacher = self.build_teacher()
++                import sys as _sys
++                _sys.path.insert(0, "/home/wm-vla-rl/module_videowm")
++                from kda_distill import logit_kd_loss, attn_output_mse, action_hidden_mse
++                with torch.no_grad():
++                    # NO loss_weights to the teacher: we only use its logits/hidden; the weighted
++                    # CrossEntropyLoss(weight=loss_weights) path puts the class-weight on CPU -> device crash.
++                    t_out = self.teacher(input_ids=examples, labels=labels, output_hidden_states=True, training=True, att_mask=True)
++                    teacher_logits = t_out[2]
++                    teacher_hidden = t_out[3]
++                if getattr(self.args, "kd_weight", 0.0) > 0:   # logit-KD (optional)
++                    kd = logit_kd_loss(logits, teacher_logits, labels_c, T=self.args.kd_temp, action_only=self.args.kd_action_only)
++                    additional_loss_dict["kd_loss"] = (kd, self.args.kd_weight)
++                if getattr(self.args, "action_hidden_weight", 0.0) > 0:   # VITA-VLA action distillation
++                    ah = action_hidden_mse(hidden_states, teacher_hidden, labels_c)
++                    additional_loss_dict["act_hidden_mse"] = (ah, self.args.action_hidden_weight)
++                # ARL2-faithful: MSE between hybrid (KDA) and softmax (teacher) self-ATTENTION outputs,
++                # captured by the forward hooks set up in build_teacher (filled during both forwards).
++                if getattr(self.args, "attn_mse_weight", 0.0) > 0 and getattr(self, "_student_attn", None):
++                    kset = self._kd_attn_layers
++                    a_mse = attn_output_mse(self._student_attn, self._teacher_attn, kset)
++                    additional_loss_dict["attn_mse"] = (a_mse, self.args.attn_mse_weight)
++                    self._student_attn.clear(); self._teacher_attn.clear()  # in-place: hook closures hold these dict objects
++            # continuous action head (OFT/VITA): regress raw normalized GT actions at action_start(10004)
++            # anchors (hidden_states last-layer [B,T,dim]; model right-pads 0 so examples[b] 10004 positions
++            # align). L1 on 6 arm dims + BCE on gripper. Defensive locals() so non-awm_w funcs skip safely.
++            _ca = locals().get("cont_actions"); _ch = locals().get("cont_has")
++            if getattr(self.args, "cont_head", False) and _ca is not None:
++                import torch.nn.functional as _F
++                _cp = getattr(self.model, "_cont_preds", None)
++                if _cp is None and hasattr(self.model, "module"):
++                    _cp = getattr(self.model.module, "_cont_preds", None)
++                _preds = []; _tgts = []
++                if _cp is not None:
++                    for _b in range(len(examples)):
++                        if _ch is None or float(_ch[_b]) < 0.5:
++                            continue
++                        _pos = [_j for _j, _t in enumerate(examples[_b]) if _t == 10004][:10]
++                        if not _pos:
++                            continue
++                        _pp = _cp[_b, _pos]  # [n,7], computed inside forward (FSDP-safe gather)
++                        _tg = torch.as_tensor(_ca[_b][:len(_pos)], device=_pp.device, dtype=_pp.dtype)
++                        _preds.append(_pp); _tgts.append(_tg)
++                if _preds:
++                    _P = torch.cat(_preds, 0); _T = torch.cat(_tgts, 0)
++                    _l1 = _F.l1_loss(_P[:, :6], _T[:, :6])
++                    _bce = _F.binary_cross_entropy_with_logits(_P[:, 6], (_T[:, 6] + 1) / 2)
++                    additional_loss_dict["cont_l1"] = (_l1, self.args.cont_l1_weight)
++                    additional_loss_dict["cont_bce"] = (_bce, self.args.cont_bce_weight)
+             loss = c_loss
+             for add_loss, weight in additional_loss_dict.values():
+                 loss = loss + add_loss * weight
+@@ -968,7 +1151,7 @@ class PretrainSolverBase_ck(ABC):
+                 sys.exit(1)
+ 
+             effective_loss = loss / accum_iter
+-            
++
+             accuracies_action, accuracies_image, l1_loss = self.calculate_accuracies(labels_c, logits)
+                 
+             for i in range(len(accuracies_action)):
+@@ -1155,6 +1338,32 @@ class PretrainSolverBase_ck(ABC):
+                 "tf32": contextlib.nullcontext(),
+             }[self.args.precision]:
+                 c_loss, additional_loss_dict, logits, hidden_states, labels_c = self.model(input_ids=examples, labels=labels, output_hidden_states=True, training=True, att_mask=True)            
++            # continuous action head (OFT/VITA): regress raw normalized GT actions at action_start(10004)
++            # anchors (hidden_states last-layer [B,T,dim]; model right-pads 0 so examples[b] 10004 positions
++            # align). L1 on 6 arm dims + BCE on gripper. Defensive locals() so non-awm_w funcs skip safely.
++            _ca = locals().get("cont_actions"); _ch = locals().get("cont_has")
++            if getattr(self.args, "cont_head", False) and _ca is not None:
++                import torch.nn.functional as _F
++                _cp = getattr(self.model, "_cont_preds", None)
++                if _cp is None and hasattr(self.model, "module"):
++                    _cp = getattr(self.model.module, "_cont_preds", None)
++                _preds = []; _tgts = []
++                if _cp is not None:
++                    for _b in range(len(examples)):
++                        if _ch is None or float(_ch[_b]) < 0.5:
++                            continue
++                        _pos = [_j for _j, _t in enumerate(examples[_b]) if _t == 10004][:10]
++                        if not _pos:
++                            continue
++                        _pp = _cp[_b, _pos]  # [n,7], computed inside forward (FSDP-safe gather)
++                        _tg = torch.as_tensor(_ca[_b][:len(_pos)], device=_pp.device, dtype=_pp.dtype)
++                        _preds.append(_pp); _tgts.append(_tg)
++                if _preds:
++                    _P = torch.cat(_preds, 0); _T = torch.cat(_tgts, 0)
++                    _l1 = _F.l1_loss(_P[:, :6], _T[:, :6])
++                    _bce = _F.binary_cross_entropy_with_logits(_P[:, 6], (_T[:, 6] + 1) / 2)
++                    additional_loss_dict["cont_l1"] = (_l1, self.args.cont_l1_weight)
++                    additional_loss_dict["cont_bce"] = (_bce, self.args.cont_bce_weight)
+             loss = c_loss
+             for add_loss, weight in additional_loss_dict.values():
+                 loss = loss + add_loss * weight
+@@ -1238,6 +1447,32 @@ class PretrainSolverBase_ck(ABC):
+                 "tf32": contextlib.nullcontext(),
+             }[self.args.precision]:
+                 c_loss, additional_loss_dict, logits, hidden_states, labels_c = self.model(input_ids=examples, labels=labels, output_hidden_states=True, training=True, loss_weights=loss_weights, att_mask=True)            
++            # continuous action head (OFT/VITA): regress raw normalized GT actions at action_start(10004)
++            # anchors (hidden_states last-layer [B,T,dim]; model right-pads 0 so examples[b] 10004 positions
++            # align). L1 on 6 arm dims + BCE on gripper. Defensive locals() so non-awm_w funcs skip safely.
++            _ca = locals().get("cont_actions"); _ch = locals().get("cont_has")
++            if getattr(self.args, "cont_head", False) and _ca is not None:
++                import torch.nn.functional as _F
++                _cp = getattr(self.model, "_cont_preds", None)
++                if _cp is None and hasattr(self.model, "module"):
++                    _cp = getattr(self.model.module, "_cont_preds", None)
++                _preds = []; _tgts = []
++                if _cp is not None:
++                    for _b in range(len(examples)):
++                        if _ch is None or float(_ch[_b]) < 0.5:
++                            continue
++                        _pos = [_j for _j, _t in enumerate(examples[_b]) if _t == 10004][:10]
++                        if not _pos:
++                            continue
++                        _pp = _cp[_b, _pos]  # [n,7], computed inside forward (FSDP-safe gather)
++                        _tg = torch.as_tensor(_ca[_b][:len(_pos)], device=_pp.device, dtype=_pp.dtype)
++                        _preds.append(_pp); _tgts.append(_tg)
++                if _preds:
++                    _P = torch.cat(_preds, 0); _T = torch.cat(_tgts, 0)
++                    _l1 = _F.l1_loss(_P[:, :6], _T[:, :6])
++                    _bce = _F.binary_cross_entropy_with_logits(_P[:, 6], (_T[:, 6] + 1) / 2)
++                    additional_loss_dict["cont_l1"] = (_l1, self.args.cont_l1_weight)
++                    additional_loss_dict["cont_bce"] = (_bce, self.args.cont_bce_weight)
+             loss = c_loss
+             for add_loss, weight in additional_loss_dict.values():
+                 loss = loss + add_loss * weight
+@@ -1319,6 +1554,56 @@ class PretrainSolverBase_ck(ABC):
+                 "tf32": contextlib.nullcontext(),
+             }[self.args.precision]:
+                 c_loss, additional_loss_dict, logits, hidden_states, labels_c = self.model(input_ids=examples, labels=labels, output_hidden_states=True, training=True, att_mask=True)
++            # distillation: frozen SDPA teacher -> KDA student logit-KD (added to the weighted loss dict)
++            if getattr(self.args, "distill", False):
++                if getattr(self, "teacher", None) is None:
++                    self.teacher = self.build_teacher()
++                import sys as _sys
++                _sys.path.insert(0, "/home/wm-vla-rl/module_videowm")
++                from kda_distill import logit_kd_loss, attn_output_mse, action_hidden_mse
++                with torch.no_grad():
++                    t_out = self.teacher(input_ids=examples, labels=labels, output_hidden_states=True, training=True, att_mask=True)
++                    teacher_logits = t_out[2]
++                    teacher_hidden = t_out[3]
++                if getattr(self.args, "kd_weight", 0.0) > 0:   # logit-KD (optional)
++                    kd = logit_kd_loss(logits, teacher_logits, labels_c, T=self.args.kd_temp, action_only=self.args.kd_action_only)
++                    additional_loss_dict["kd_loss"] = (kd, self.args.kd_weight)
++                if getattr(self.args, "action_hidden_weight", 0.0) > 0:   # VITA-VLA action distillation
++                    ah = action_hidden_mse(hidden_states, teacher_hidden, labels_c)
++                    additional_loss_dict["act_hidden_mse"] = (ah, self.args.action_hidden_weight)
++                # ARL2-faithful: MSE between hybrid (KDA) and softmax (teacher) self-ATTENTION outputs,
++                # captured by the forward hooks set up in build_teacher (filled during both forwards).
++                if getattr(self.args, "attn_mse_weight", 0.0) > 0 and getattr(self, "_student_attn", None):
++                    kset = self._kd_attn_layers
++                    a_mse = attn_output_mse(self._student_attn, self._teacher_attn, kset)
++                    additional_loss_dict["attn_mse"] = (a_mse, self.args.attn_mse_weight)
++                    self._student_attn.clear(); self._teacher_attn.clear()  # in-place: hook closures hold these dict objects
++            # continuous action head (OFT/VITA): regress raw normalized GT actions at action_start(10004)
++            # anchors (hidden_states last-layer [B,T,dim]; model right-pads 0 so examples[b] 10004 positions
++            # align). L1 on 6 arm dims + BCE on gripper. Defensive locals() so non-awm_w funcs skip safely.
++            _ca = locals().get("cont_actions"); _ch = locals().get("cont_has")
++            if getattr(self.args, "cont_head", False) and _ca is not None:
++                import torch.nn.functional as _F
++                _cp = getattr(self.model, "_cont_preds", None)
++                if _cp is None and hasattr(self.model, "module"):
++                    _cp = getattr(self.model.module, "_cont_preds", None)
++                _preds = []; _tgts = []
++                if _cp is not None:
++                    for _b in range(len(examples)):
++                        if _ch is None or float(_ch[_b]) < 0.5:
++                            continue
++                        _pos = [_j for _j, _t in enumerate(examples[_b]) if _t == 10004][:10]
++                        if not _pos:
++                            continue
++                        _pp = _cp[_b, _pos]  # [n,7], computed inside forward (FSDP-safe gather)
++                        _tg = torch.as_tensor(_ca[_b][:len(_pos)], device=_pp.device, dtype=_pp.dtype)
++                        _preds.append(_pp); _tgts.append(_tg)
++                if _preds:
++                    _P = torch.cat(_preds, 0); _T = torch.cat(_tgts, 0)
++                    _l1 = _F.l1_loss(_P[:, :6], _T[:, :6])
++                    _bce = _F.binary_cross_entropy_with_logits(_P[:, 6], (_T[:, 6] + 1) / 2)
++                    additional_loss_dict["cont_l1"] = (_l1, self.args.cont_l1_weight)
++                    additional_loss_dict["cont_bce"] = (_bce, self.args.cont_bce_weight)
+             loss = c_loss
+             for add_loss, weight in additional_loss_dict.values():
+                 loss = loss + add_loss * weight
+@@ -1402,6 +1687,32 @@ class PretrainSolverBase_ck(ABC):
+                 "tf32": contextlib.nullcontext(),
+             }[self.args.precision]:
+                 c_loss, additional_loss_dict, logits, hidden_states, labels_c = self.model(input_ids=examples, labels=labels, output_hidden_states=True, training=True, loss_weights=loss_weights, att_mask=True)
++            # continuous action head (OFT/VITA): regress raw normalized GT actions at action_start(10004)
++            # anchors (hidden_states last-layer [B,T,dim]; model right-pads 0 so examples[b] 10004 positions
++            # align). L1 on 6 arm dims + BCE on gripper. Defensive locals() so non-awm_w funcs skip safely.
++            _ca = locals().get("cont_actions"); _ch = locals().get("cont_has")
++            if getattr(self.args, "cont_head", False) and _ca is not None:
++                import torch.nn.functional as _F
++                _cp = getattr(self.model, "_cont_preds", None)
++                if _cp is None and hasattr(self.model, "module"):
++                    _cp = getattr(self.model.module, "_cont_preds", None)
++                _preds = []; _tgts = []
++                if _cp is not None:
++                    for _b in range(len(examples)):
++                        if _ch is None or float(_ch[_b]) < 0.5:
++                            continue
++                        _pos = [_j for _j, _t in enumerate(examples[_b]) if _t == 10004][:10]
++                        if not _pos:
++                            continue
++                        _pp = _cp[_b, _pos]  # [n,7], computed inside forward (FSDP-safe gather)
++                        _tg = torch.as_tensor(_ca[_b][:len(_pos)], device=_pp.device, dtype=_pp.dtype)
++                        _preds.append(_pp); _tgts.append(_tg)
++                if _preds:
++                    _P = torch.cat(_preds, 0); _T = torch.cat(_tgts, 0)
++                    _l1 = _F.l1_loss(_P[:, :6], _T[:, :6])
++                    _bce = _F.binary_cross_entropy_with_logits(_P[:, 6], (_T[:, 6] + 1) / 2)
++                    additional_loss_dict["cont_l1"] = (_l1, self.args.cont_l1_weight)
++                    additional_loss_dict["cont_bce"] = (_bce, self.args.cont_bce_weight)
+             loss = c_loss
+             for add_loss, weight in additional_loss_dict.values():
+                 loss = loss + add_loss * weight
+diff --git a/xllmx/util/ckpt.py b/xllmx/util/ckpt.py
+index b275a43..67748c3 100644
+--- a/xllmx/util/ckpt.py
++++ b/xllmx/util/ckpt.py
+@@ -6,7 +6,12 @@ from typing import Dict, Optional
+ 
+ import torch
+ from torch import distributed as dist
+-from torch.distributed.fsdp import FullStateDictConfig, FullyShardedDataParallel as FSDP, StateDictType
++from torch.distributed.fsdp import (
++    FullOptimStateDictConfig,
++    FullStateDictConfig,
++    FullyShardedDataParallel as FSDP,
++    StateDictType,
++)
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -96,18 +101,24 @@ def save(
+         _save_model()
+         logger.info("model saved")
+ 
+-    # save optimizer
++    # save optimizer — FQN-based FULL optim state (consolidated on rank0). The previous
++    # LOCAL_STATE_DICT per-rank format aligned by flat-param SHARD position, which silently
++    # mis-maps Adam moments when the model is rebuilt via surgery (kdaify+attnres) on resume →
++    # exploding first step → NaN. optim_state_dict() keys by FQN → robust to rebuild/resharding.
++    if optimizer is not None and getattr(args, "no_save_optimizer", False):
++        logger.info("no_save_optimizer set, skip optimizer (model-only ckpt; resume warm-starts model + fresh optim)")
++        optimizer = None
+     if optimizer is not None:
+         with FSDP.state_dict_type(
+             model,
+-            StateDictType.LOCAL_STATE_DICT,
++            StateDictType.FULL_STATE_DICT,
++            FullStateDictConfig(rank0_only=True, offload_to_cpu=True),
++            FullOptimStateDictConfig(rank0_only=True, offload_to_cpu=True),
+         ):
+-            opt_path = os.path.join(
+-                save_dir,
+-                f"optimizer.{dist.get_rank():05d}-of-{dist.get_world_size():05d}.pth",
+-            )
+-            torch.save(optimizer.state_dict(), opt_path)
+-            logger.info("optimizer saved")
++            full_osd = FSDP.optim_state_dict(model, optimizer)
++        if is_main_process:
++            torch.save(full_osd, os.path.join(save_dir, "optimizer.full.pth"))
++            logger.info("optimizer saved (FQN full)")
+     else:
+         logger.info("optimizer is None, skip saving")
+ 

@@ -80,8 +80,10 @@ class LoRALinear(torch.nn.Module):
         return self.base(x) + self.lora_B(self.lora_A(x)) * self.scale
 
 
-def lora_ify_kda(model, r=32, alpha=64):
-    """Inject LoRA on q/k/v/o of every KDAttention module (the linearized layers). Run on ALL ranks
+def lora_ify_kda(model, r=32, alpha=64, ffn=False):
+    """Inject LoRA on q/k/v/o of every KDAttention (the linearized layers). With ffn=True also LoRA the
+    MLP (gate/up/down_proj) of the decoder layers that contain a KDAttention — LoLCATs/ARL2 LoRA the FFN
+    too (frozen MLP otherwise can't adapt to the approximate linear-attention output). Run on ALL ranks
     (structure must match for FSDP); rank0's lora init is broadcast via sync_module_states."""
     n = 0
     for mod in model.modules():
@@ -90,5 +92,54 @@ def lora_ify_kda(model, r=32, alpha=64):
                 if hasattr(mod, proj) and not isinstance(getattr(mod, proj), LoRALinear):
                     setattr(mod, proj, LoRALinear(getattr(mod, proj), r=r, alpha=alpha))
                     n += 1
-    print(f"[lora_ify] wrapped {n} q/k/v/o projections with LoRA (r={r}, alpha={alpha})")
+    nf = 0
+    if ffn:
+        for mod in model.modules():
+            # a decoder layer (or its AttnRes .inner) holds both .self_attn (KDAttention) and .mlp
+            sa = getattr(mod, "self_attn", None)
+            mlp = getattr(mod, "mlp", None)
+            if isinstance(sa, KDAttention) and mlp is not None:
+                for proj in ("gate_proj", "up_proj", "down_proj"):
+                    if hasattr(mlp, proj) and not isinstance(getattr(mlp, proj), LoRALinear):
+                        setattr(mlp, proj, LoRALinear(getattr(mlp, proj), r=r, alpha=alpha))
+                        nf += 1
+    print(f"[lora_ify] wrapped {n} q/k/v/o + {nf} FFN projections with LoRA (r={r}, alpha={alpha}, ffn={ffn})")
+    return model
+
+
+class ContinuousActionHead(torch.nn.Module):
+    """OFT/VITA-style continuous action head: MLP on the last-layer hidden at each action_start (10004)
+    anchor -> 7-dim continuous action (6 arm + 1 gripper), supervised by RAW normalized GT actions (L1 arm
+    + BCE gripper). Sidesteps the discrete-token action bottleneck that caps linearized models in closed-loop.
+    Sits on top of the (KDA-linearized) backbone; fully trained (small, ~few M params)."""
+    def __init__(self, dim=4096, hidden=1024, n_dim=7, n_layers=3, dropout=0.0):
+        super().__init__()
+        layers = []
+        d = dim
+        for _ in range(n_layers - 1):
+            layers += [torch.nn.Linear(d, hidden), torch.nn.ReLU()]
+            if dropout > 0:
+                layers += [torch.nn.Dropout(dropout)]
+            d = hidden
+        layers += [torch.nn.Linear(d, n_dim)]
+        self.net = torch.nn.Sequential(*layers)
+        # zero-init final layer so it starts as a near-constant (stable warm-start)
+        torch.nn.init.zeros_(self.net[-1].weight)
+        torch.nn.init.zeros_(self.net[-1].bias)
+
+    def forward(self, hidden_at_anchors):  # [M, dim] -> [M, 7]
+        return self.net(hidden_at_anchors)
+
+
+def attach_cont_head(model, dim=None, hidden=1024, n_dim=7, n_layers=3):
+    """Attach a ContinuousActionHead as model.cont_action_head (so FSDP wraps it + it's saved).
+    Param names contain 'cont_action_head' -> picked up by the solver's trainable filter."""
+    base = model.model if hasattr(model, "model") else model
+    if dim is None:
+        dim = base.config.hidden_size
+    model.cont_action_head = ContinuousActionHead(dim=dim, hidden=hidden, n_dim=n_dim, n_layers=n_layers)
+    dev = next(model.parameters()).device
+    dt = next(model.parameters()).dtype
+    model.cont_action_head = model.cont_action_head.to(dev, dt)
+    print(f"[cont_head] attached ContinuousActionHead(dim={dim}, hidden={hidden}, n_dim={n_dim}, n_layers={n_layers})")
     return model

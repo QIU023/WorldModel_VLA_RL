@@ -18,9 +18,21 @@ OUT=${OUT:-output_libero_256/kda_50clean}
 PORT=${PORT:-30093}
 lr=${LR:-5e-6}; min_lr=${MIN_LR:-5e-7}; wd=0.1; dropout=0.05; zlw=1e-5; EPOCHS=${EPOCHS:-4}
 ATTN_MSE=${ATTN_MSE:-1.0}; ACTION_HIDDEN=${ACTION_HIDDEN:-1.0}; KD_WEIGHT=${KD_WEIGHT:-0.0}
+KD_ACTION_ONLY=${KD_ACTION_ONLY:-0}; KDAO_ARG=""; [ "$KD_ACTION_ONLY" = "1" ] && KDAO_ARG="--kd_action_only"  # action-logit-KD (kd on action tokens only)
+KD_TEMP=${KD_TEMP:-2.0}
+SAVE_ITER=${SAVE_ITER:-500}   # checkpoint every N iters (was 2000; finer = less lost on crash + eval intermediate)
+CKPT_KEEP=${CKPT_KEEP:-1}     # how many recent ckpts to keep (max_keep)
+# continuous action head (OFT/VITA): MUST export CONT_HEAD (ItemProcessor reads env at import to emit cont targets)
+CONT_HEAD=${CONT_HEAD:-0}; export CONT_HEAD
+OOM_SKIP_TOK=${OOM_SKIP_TOK:-0}; export OOM_SKIP_TOK   # >0: proactively skip batches with max_len*bs > this (DDP-safe, keeps big BS)
+CONT_ARG=""; [ "$CONT_HEAD" = "1" ] && CONT_ARG="--cont_head --cont_l1_weight ${CONT_L1:-5.0} --cont_bce_weight ${CONT_BCE:-1.0}"
+DISTILL=${DISTILL:-1}; DISTILL_ARG=""; [ "$DISTILL" = "1" ] && DISTILL_ARG="--distill --teacher_ckpt $SOTA --kd_weight $KD_WEIGHT --kd_temp $KD_TEMP $KDAO_ARG"  # set DISTILL=0 to skip teacher (cont-head only)
 BS=${BS:-6}; ACCUM=${ACCUM:-2}
 FREEZE_ARG=""; [ "${FREEZE:-0}" = "1" ] && FREEZE_ARG="--freeze_base"   # param-efficient (freeze base)
 [ "${LORA:-0}" = "1" ] && FREEZE_ARG="$FREEZE_ARG --lora_qkvo --lora_r ${LORA_R:-32}"  # + LoRA on q/k/v/o
+[ "${LORA_FFN:-0}" = "1" ] && FREEZE_ARG="$FREEZE_ARG --lora_ffn"  # + LoRA on FFN (LoLCATs)
+[ "${STRICT:-0}" = "1" ] && FREEZE_ARG="$FREEZE_ARG --strict_stage1"  # MOHAWK/ARL2 teacher-context per-layer Stage-1
+[ "${SKIPVAL:-0}" = "1" ] && FREEZE_ARG="$FREEZE_ARG --skip_val"  # skip post-epoch val (OOMs at transition)
 mkdir -p "$OUT"
 
 for attempt in $(seq 1 80); do
@@ -47,10 +59,10 @@ for attempt in $(seq 1 80); do
     --data_config_val_ood ../configs/libero_256_all/his_2_val_ood_10_img_only_ck_10_1a2i.yaml \
     --cache_ann_on_disk --num_workers 8 \
     --output_dir "$OUT" \
-    --ckpt_max_keep 1 --only_save_trainable --save_iteration_interval 2000 \
+    --ckpt_max_keep $CKPT_KEEP --only_save_trainable --save_iteration_interval $SAVE_ITER \
     --max_seq_len 4096 --unmask_image_logits \
     --attn_type kda --kda_layers "$ARR_KDA" --use_attnres --attnres_groups 8 \
-    --distill --teacher_ckpt "$SOTA" --kd_weight $KD_WEIGHT --kd_temp 2.0 \
+    $DISTILL_ARG $CONT_ARG \
     --attn_mse_weight $ATTN_MSE --action_hidden_weight $ACTION_HIDDEN
   code=$?
   echo "===== attempt $attempt exited code $code @ $(date) ====="
