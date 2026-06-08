@@ -46,9 +46,21 @@ pushing N via resolution reveals the crossover + a growing O(N) win:
 | 768px | 32 | 294 912 | 1.889 | 3.035 | **1.61×** |
 
 **Crossover at N≈66k; beyond it linear scales better and the gap grows** (softmax time is super-linear in N =
-O(N²); linear is ~linear = O(N)). At N=295k (768px, 32 frames) the 75%-linear model is **1.61× faster** and
-climbing — exactly SANA-WM's high-res / minute-scale regime. (Memory is comparable, ~+1GB for linear: the
-FP32 φ + KV state offset FlashAttention's O(N) memory; the win here is SPEED, not memory. bf16 φ would help.)
+O(N²); linear is ~linear = O(N)). Pushing to the model's max (128 latent frames × high res) reaches
+SANA-WM's minute-scale token regime, where the gap keeps climbing:
+
+| N tokens | linear s | softmax s | **speedup** |
+|---|---|---|---|
+| 131k | 0.74 | 0.90 | 1.21× |
+| 524k (512px·128f) | 4.20 | 8.49 | 2.02× |
+| 786k | 7.51 | 17.6 | 2.34× |
+| 1.05M (1024px·64f) | 11.7 | 30.2 | 2.58× |
+| **1.18M (768px·128f)** | **14.2** | **38.1** | **2.69×** |
+
+Monotonic 1.21×→2.69× as N goes 131k→1.18M. At ~1.2M tokens (minute-scale) softmax needs **38 s per
+forward** (impractical) vs linear's 14 s. Extrapolating the trend (speedup ~ N^0.35), true minute-scale
+(N≈3.5M) → ~3.5–4×. Memory comparable (~±5GB). This is the direct same-task comparison to SANA-WM's
+efficiency claim — the O(N) advantage is real and grows exactly in their high-res/long-video regime.
 
 ## Quality vs linearization ratio (output-distill, vs-teacher fidelity)
 
