@@ -95,24 +95,27 @@ def _trainable(model, groups=("feat_map",)):
 
 
 def stage1_attn_transfer(model, linear_layers, data_iter, steps=2000, lr=1e-3, p_mean=0.0, p_std=1.0,
-                         log_every=20, save_dir=None):
-    """Train ONLY Hedgehog phi to match softmax teacher attn1 outputs, on real noised inputs."""
+                         accum=1, log_every=20, save_dir=None):
+    """Train ONLY Hedgehog phi to match softmax teacher attn1 outputs, on real noised inputs. GBS = micro*accum."""
     feat_params = _trainable(model, ("feat_map",))
     opt = torch.optim.AdamW(feat_params, lr=lr, weight_decay=0.0, betas=(0.9, 0.95))
-    print(f"[stage1] {sum(p.numel() for p in feat_params)/1e6:.2f}M feat_map params, lr={lr}, steps={steps}", flush=True)
+    print(f"[stage1] {sum(p.numel() for p in feat_params)/1e6:.2f}M feat_map params, lr={lr}, steps={steps}, accum={accum}", flush=True)
     model.train(); t0 = time.time(); oom = 0
     for step in range(steps):
-        batch = next(data_iter)
-        try:
-            fwd, _v, _m = make_noisy_input(batch, model, p_mean, p_std)
-            loss = attn_transfer_loss(model, linear_layers, fwd)
-            opt.zero_grad(); loss.backward()
-            torch.nn.utils.clip_grad_norm_(feat_params, 1.0); opt.step()
-        except torch.cuda.OutOfMemoryError:
-            oom += 1; opt.zero_grad(set_to_none=True); torch.cuda.empty_cache()
-            print(f"[stage1] step {step} OOM-skip (#{oom})", flush=True); continue
+        opt.zero_grad(); acc = 0.0; bad = False
+        for _ in range(accum):
+            batch = next(data_iter)
+            try:
+                fwd, _v, _m = make_noisy_input(batch, model, p_mean, p_std)
+                loss = attn_transfer_loss(model, linear_layers, fwd) / accum
+                loss.backward(); acc += loss.item() * accum
+            except torch.cuda.OutOfMemoryError:
+                oom += 1; bad = True; torch.cuda.empty_cache(); break
+        if bad:
+            opt.zero_grad(set_to_none=True); print(f"[stage1] step {step} OOM-skip (#{oom})", flush=True); continue
+        torch.nn.utils.clip_grad_norm_(feat_params, 1.0); opt.step()
         if step % log_every == 0:
-            print(f"[stage1] step {step}/{steps}  attn_mse {loss.item():.5f}  {time.time()-t0:.0f}s", flush=True)
+            print(f"[stage1] step {step}/{steps}  attn_mse {acc/accum:.5f}  {time.time()-t0:.0f}s", flush=True)
         if save_dir and step > 0 and step % 500 == 0:
             _save(model, save_dir, step, tag="s1")
     if save_dir:
@@ -151,35 +154,36 @@ def stage2_flow_finetune(model, data_iter, steps=3000, lr=2e-4, p_mean=0.0, p_st
 
 
 def stage2_output_distill(model, teacher, data_iter, steps=2000, lr=2e-4, p_mean=0.0, p_std=1.0,
-                          log_every=20, save_dir=None):
+                          accum=1, log_every=20, save_dir=None):
     """OUTPUT distillation (the direct 逼近教师 objective): match the linearized student's velocity to the
-    PRISTINE softmax teacher's velocity on identical noised inputs. Trains feat_map+LoRA+AttnRes. `teacher` is
-    a clean CosmosTransformer3DModel (no surgery), frozen. This optimizes lin-vs-teacher fidelity directly,
-    unlike flow-matching (which only fits the data)."""
+    PRISTINE softmax teacher's velocity on identical noised inputs. Trains feat_map+LoRA+AttnRes. GBS=micro*accum."""
     params = _trainable(model, ("feat_map", "lora", "attnres_coord"))
     teacher.eval()
     for p in teacher.parameters():
         p.requires_grad_(False)
     opt = torch.optim.AdamW(params, lr=lr, weight_decay=0.0, betas=(0.9, 0.95))
-    print(f"[s2-distill] {sum(p.numel() for p in params)/1e6:.2f}M trainable, lr={lr}, steps={steps}", flush=True)
+    print(f"[s2-distill] {sum(p.numel() for p in params)/1e6:.2f}M trainable, lr={lr}, steps={steps}, accum={accum}", flush=True)
     model.train(); t0 = time.time(); ema = None; oom = 0
     for step in range(steps):
-        batch = next(data_iter)
-        try:
-            fwd, _v, gen_mask = make_noisy_input(batch, model, p_mean, p_std)
-            with torch.no_grad():
-                tgt = teacher(**fwd, return_dict=False)[0]              # pristine teacher velocity
-            pred = model(**fwd, return_dict=False)[0]                   # linearized student velocity
-            diff = (pred.float() - tgt.float()) * gen_mask.float()
-            loss = (diff ** 2).sum() / gen_mask.float().sum().clamp_min(1.0) / pred.shape[1]
-            opt.zero_grad(); loss.backward()
-            torch.nn.utils.clip_grad_norm_(params, 1.0); opt.step()
-        except torch.cuda.OutOfMemoryError:
-            oom += 1; opt.zero_grad(set_to_none=True); torch.cuda.empty_cache()
-            print(f"[s2-distill] step {step} OOM-skip (#{oom})", flush=True); continue
-        ema = loss.item() if ema is None else 0.98 * ema + 0.02 * loss.item()
+        opt.zero_grad(); acc = 0.0; bad = False
+        for _ in range(accum):
+            batch = next(data_iter)
+            try:
+                fwd, _v, gen_mask = make_noisy_input(batch, model, p_mean, p_std)
+                with torch.no_grad():
+                    tgt = teacher(**fwd, return_dict=False)[0]          # pristine teacher velocity
+                pred = model(**fwd, return_dict=False)[0]               # linearized student velocity
+                diff = (pred.float() - tgt.float()) * gen_mask.float()
+                loss = (diff ** 2).sum() / gen_mask.float().sum().clamp_min(1.0) / pred.shape[1] / accum
+                loss.backward(); acc += loss.item() * accum
+            except torch.cuda.OutOfMemoryError:
+                oom += 1; bad = True; torch.cuda.empty_cache(); break
+        if bad:
+            opt.zero_grad(set_to_none=True); print(f"[s2-distill] step {step} OOM-skip (#{oom})", flush=True); continue
+        torch.nn.utils.clip_grad_norm_(params, 1.0); opt.step()
+        ema = acc/accum if ema is None else 0.98 * ema + 0.02 * (acc/accum)
         if step % log_every == 0:
-            print(f"[s2-distill] step {step}/{steps}  distill_mse {loss.item():.4f} (ema {ema:.4f})  {time.time()-t0:.0f}s", flush=True)
+            print(f"[s2-distill] step {step}/{steps}  distill_mse {acc/accum:.4f} (ema {ema:.4f})  {time.time()-t0:.0f}s", flush=True)
         if save_dir and step > 0 and step % 500 == 0:
             _save(model, save_dir, step, tag="s2d")
     if save_dir:
@@ -215,7 +219,8 @@ def main():
     ap.add_argument("--method", choices=["flow", "distill"], default="flow",
                     help="stage-2 objective: flow=flow-matching on data, distill=match pristine teacher velocity (逼近教师)")
     ap.add_argument("--steps", type=int, default=2000)
-    ap.add_argument("--batch", type=int, default=1)
+    ap.add_argument("--batch", type=int, default=1, help="micro-batch per GPU")
+    ap.add_argument("--accum", type=int, default=1, help="grad-accum steps -> GBS = batch * accum")
     ap.add_argument("--lr", type=float, default=None)
     ap.add_argument("--p_mean", type=float, default=0.0)
     ap.add_argument("--p_std", type=float, default=1.0)
@@ -260,14 +265,14 @@ def main():
     di = latent_batches(args.latents, batch_size=args.batch)
     if args.stage == 1:
         stage1_attn_transfer(model, linear_layers, di, steps=args.steps, lr=args.lr or 1e-3,
-                             p_mean=args.p_mean, p_std=args.p_std, save_dir=args.save)
+                             p_mean=args.p_mean, p_std=args.p_std, accum=args.accum, save_dir=args.save)
     elif args.stage == 2 and args.method == "flow":
         stage2_flow_finetune(model, di, steps=args.steps, lr=args.lr or 2e-4,
                              p_mean=args.p_mean, p_std=args.p_std, save_dir=args.save)
     elif args.stage == 2 and args.method == "distill":
         teacher = load_transformer(args.transformer)   # pristine softmax teacher (no surgery)
         stage2_output_distill(model, teacher, di, steps=args.steps, lr=args.lr or 2e-4,
-                              p_mean=args.p_mean, p_std=args.p_std, save_dir=args.save)
+                              p_mean=args.p_mean, p_std=args.p_std, accum=args.accum, save_dir=args.save)
     else:
         raise ValueError(args.stage)
 
