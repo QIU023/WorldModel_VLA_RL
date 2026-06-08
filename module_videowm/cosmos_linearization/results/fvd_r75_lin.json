@@ -1,0 +1,8 @@
+{
+  "n_teacher": 96,
+  "n_lin": 96,
+  "n_real": 96,
+  "FVD_teacher_vs_real": 518.6411336360986,
+  "FVD_lin_vs_real": 454.07158295630586,
+  "FVD_lin_vs_teacher": 75.24938855111128
+}
