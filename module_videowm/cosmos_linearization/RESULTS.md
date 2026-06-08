@@ -122,6 +122,25 @@ more spatial detail = harder for linear attention to reproduce the teacher exact
 SANA-WM reports VBench overall 80.62/81.89 at native 720p (different base model + 720p + their pipeline — a base
 comparison, not our linearization contribution; ours is student≈teacher).
 
+## VBench @ 480px native (teacher vs lin-75%) — appearance preserved, DYNAMICS lost
+
+| dimension | teacher | lin-75% | Δ |
+|---|---|---|---|
+| subject_consistency | 0.559 | 0.550 | −0.010 |
+| background_consistency | 0.745 | 0.746 | +0.002 |
+| motion_smoothness | 0.930 | 0.946 | +0.015 |
+| **dynamic_degree** | 0.917 | **0.490** | **−0.427** |
+| aesthetic_quality | 0.320 | 0.347 | +0.028 |
+| imaging_quality | 0.505 | 0.468 | −0.037 |
+
+**Honest key finding:** every *appearance* dimension is preserved (subject/background/motion-smoothness/
+aesthetic/imaging within ±0.04 — some higher), BUT **dynamic_degree halves (0.92→0.49)**: the linearized
+student generates noticeably MORE STATIC video. This is the linear-attention "smoothing/static" failure mode —
+saturated/hidden at 256px (both 1.0) but exposed at native 480px. It also explains the higher lin-vs-teacher
+LPIPS at 480px. **Net:** 75% linearization preserves static appearance quality but loses motion/dynamics,
+increasingly so with resolution — a real cost, not hidden. (Mitigations to try: lower linearization ratio,
+keep more softmax anchors on the temporal axis, or a dynamics-weighted distill loss.)
+
 ## Takeaways
 - The **distillation recipe works**: output-distillation + lower ratio brings a linearized 2B video DiT
   measurably toward its softmax teacher's generation, no pretraining (~0.4–0.6% trainable, LoRA+AttnRes+φ).
