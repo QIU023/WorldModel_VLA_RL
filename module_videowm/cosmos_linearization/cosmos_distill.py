@@ -35,14 +35,22 @@ def load_transformer(path, device="cuda", dtype=torch.bfloat16):
     return m
 
 
-def latent_batches(latents_dir):
-    """Yield clip dicts from cosmos_data.py .pt files (clean_latents, encoder_hidden_states, cond_indicator,
-    cond_mask, padding_mask). Loops forever."""
+# padding_mask stays [1,1,H,W]: the transformer broadcasts it via .repeat(batch_size,...), so it must NOT
+# be stacked to B (else B*B blowup). Everything else is per-sample and concatenated along dim 0.
+_BATCH_KEYS = ("clean_latents", "encoder_hidden_states", "cond_indicator", "cond_mask")
+
+
+def latent_batches(latents_dir, batch_size=1):
+    """Yield (possibly stacked) clip batches from cosmos_data.py .pt files. All clips share shape, so we
+    concat batch_size of them along dim 0 -> uses the H200 instead of one-clip-at-a-time. Loops forever."""
     files = sorted(glob.glob(os.path.join(latents_dir, "*.pt")))
     assert files, f"no latents in {latents_dir} (run cosmos_data.py first)"
     while True:
-        for f in files:
-            yield torch.load(f, map_location="cpu")
+        for i in range(0, len(files), batch_size):
+            dicts = [torch.load(f, map_location="cpu") for f in files[i:i + batch_size]]
+            batch = {k: torch.cat([d[k] for d in dicts], dim=0) for k in _BATCH_KEYS}
+            batch["padding_mask"] = dicts[0]["padding_mask"]   # [1,1,H,W], broadcast over batch by the DiT
+            yield batch
 
 
 def make_noisy_input(batch, model, p_mean=0.0, p_std=1.0):
@@ -92,13 +100,17 @@ def stage1_attn_transfer(model, linear_layers, data_iter, steps=2000, lr=1e-3, p
     feat_params = _trainable(model, ("feat_map",))
     opt = torch.optim.AdamW(feat_params, lr=lr, weight_decay=0.0, betas=(0.9, 0.95))
     print(f"[stage1] {sum(p.numel() for p in feat_params)/1e6:.2f}M feat_map params, lr={lr}, steps={steps}", flush=True)
-    model.train(); t0 = time.time()
+    model.train(); t0 = time.time(); oom = 0
     for step in range(steps):
         batch = next(data_iter)
-        fwd, _v, _m = make_noisy_input(batch, model, p_mean, p_std)
-        loss = attn_transfer_loss(model, linear_layers, fwd)
-        opt.zero_grad(); loss.backward()
-        torch.nn.utils.clip_grad_norm_(feat_params, 1.0); opt.step()
+        try:
+            fwd, _v, _m = make_noisy_input(batch, model, p_mean, p_std)
+            loss = attn_transfer_loss(model, linear_layers, fwd)
+            opt.zero_grad(); loss.backward()
+            torch.nn.utils.clip_grad_norm_(feat_params, 1.0); opt.step()
+        except torch.cuda.OutOfMemoryError:
+            oom += 1; opt.zero_grad(set_to_none=True); torch.cuda.empty_cache()
+            print(f"[stage1] step {step} OOM-skip (#{oom})", flush=True); continue
         if step % log_every == 0:
             print(f"[stage1] step {step}/{steps}  attn_mse {loss.item():.5f}  {time.time()-t0:.0f}s", flush=True)
         if save_dir and step > 0 and step % 500 == 0:
@@ -115,15 +127,19 @@ def stage2_flow_finetune(model, data_iter, steps=3000, lr=2e-4, p_mean=0.0, p_st
     params = _trainable(model, ("feat_map", "lora", "attnres_coord"))
     opt = torch.optim.AdamW(params, lr=lr, weight_decay=0.0, betas=(0.9, 0.95))
     print(f"[stage2] {sum(p.numel() for p in params)/1e6:.2f}M trainable, lr={lr}, steps={steps}", flush=True)
-    model.train(); t0 = time.time(); ema = None
+    model.train(); t0 = time.time(); ema = None; oom = 0
     for step in range(steps):
         batch = next(data_iter)
-        fwd, v, gen_mask = make_noisy_input(batch, model, p_mean, p_std)
-        pred = model(**fwd, return_dict=False)[0]                       # [B,16,T,Hl,Wl] = F
-        diff = (pred.float() - v.float()) * gen_mask.float()
-        loss = (diff ** 2).sum() / gen_mask.float().sum().clamp_min(1.0) / pred.shape[1]
-        opt.zero_grad(); loss.backward()
-        torch.nn.utils.clip_grad_norm_(params, 1.0); opt.step()
+        try:
+            fwd, v, gen_mask = make_noisy_input(batch, model, p_mean, p_std)
+            pred = model(**fwd, return_dict=False)[0]                   # [B,16,T,Hl,Wl] = F
+            diff = (pred.float() - v.float()) * gen_mask.float()
+            loss = (diff ** 2).sum() / gen_mask.float().sum().clamp_min(1.0) / pred.shape[1]
+            opt.zero_grad(); loss.backward()
+            torch.nn.utils.clip_grad_norm_(params, 1.0); opt.step()
+        except torch.cuda.OutOfMemoryError:
+            oom += 1; opt.zero_grad(set_to_none=True); torch.cuda.empty_cache()
+            print(f"[stage2] step {step} OOM-skip (#{oom})", flush=True); continue
         ema = loss.item() if ema is None else 0.98 * ema + 0.02 * loss.item()
         if step % log_every == 0:
             print(f"[stage2] step {step}/{steps}  flow_mse {loss.item():.4f} (ema {ema:.4f})  {time.time()-t0:.0f}s", flush=True)
@@ -160,6 +176,7 @@ def main():
     ap.add_argument("--resume", type=str, default=None, help="linstate safetensors to warm-start (stage-1 -> stage-2)")
     ap.add_argument("--ratio", type=float, default=0.75)
     ap.add_argument("--steps", type=int, default=2000)
+    ap.add_argument("--batch", type=int, default=1)
     ap.add_argument("--lr", type=float, default=None)
     ap.add_argument("--p_mean", type=float, default=0.0)
     ap.add_argument("--p_std", type=float, default=1.0)
@@ -174,13 +191,13 @@ def main():
                                      text_embed_dim=1024, max_size=(16, 16, 16), patch_size=(1, 2, 2),
                                      in_channels=17, out_channels=16, concat_padding_mask=True)
         m, lin, sm = linearize_cosmos(m, ratio_linear=0.75, lora_r=8, attnres_groups=3)
-        # synth clip dict matching cosmos_data.py output (tiny)
-        B, C, T, Hl, Wl = 1, 16, 2, 16, 16
+        # synth clip dict matching cosmos_data.py output (tiny), B=2 to exercise the batched path
+        B, C, T, Hl, Wl = 2, 16, 2, 16, 16
         ci = torch.zeros(B, 1, T, 1, 1); ci[:, :, :1] = 1.0
         clip = dict(clean_latents=torch.randn(B, C, T, Hl, Wl),
                     encoder_hidden_states=torch.randn(B, 16, 1024),
                     cond_indicator=ci, cond_mask=ci.expand(B, 1, T, Hl, Wl).contiguous(),
-                    padding_mask=torch.zeros(B, 1, 32, 32))
+                    padding_mask=torch.zeros(1, 1, 32, 32))   # [1,1,H,W], broadcast over batch
         di = (clip for _ in iter(int, 1))
         print("--- stage1 smoke ---")
         stage1_attn_transfer(m, lin, di, steps=12, lr=1e-2, log_every=4, save_dir=None)
@@ -195,7 +212,7 @@ def main():
     model, linear_layers, softmax_layers = linearize_cosmos(model, ratio_linear=args.ratio)
     if args.resume:
         _load_linstate(model, args.resume)
-    di = latent_batches(args.latents)
+    di = latent_batches(args.latents, batch_size=args.batch)
     if args.stage == 1:
         stage1_attn_transfer(model, linear_layers, di, steps=args.steps, lr=args.lr or 1e-3,
                              p_mean=args.p_mean, p_std=args.p_std, save_dir=args.save)
