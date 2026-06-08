@@ -1,0 +1,333 @@
+{
+  "summary": {
+    "mode": "lineval",
+    "tag": "r0.25_s2d",
+    "ratio": 0.25,
+    "resume": "/home/wm-vla-rl/_ext/cosmos_lin_out/r0.25/linstate_s2d_step2000.safetensors",
+    "n": 24,
+    "vs_gt": {
+      "psnr": 8.7363,
+      "ssim": 0.2145,
+      "lpips": 0.8438
+    },
+    "vs_teacher": {
+      "psnr": 14.3175,
+      "ssim": 0.5899,
+      "lpips": 0.351
+    }
+  },
+  "rows": [
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_10",
+      "vs_gt": {
+        "psnr": 8.54,
+        "ssim": 0.2367,
+        "lpips": 0.8723
+      },
+      "vs_teacher": {
+        "psnr": 14.12,
+        "ssim": 0.5936,
+        "lpips": 0.3625
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_12",
+      "vs_gt": {
+        "psnr": 9.02,
+        "ssim": 0.2193,
+        "lpips": 0.8468
+      },
+      "vs_teacher": {
+        "psnr": 15.23,
+        "ssim": 0.6331,
+        "lpips": 0.3311
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_13",
+      "vs_gt": {
+        "psnr": 9.34,
+        "ssim": 0.2214,
+        "lpips": 0.8206
+      },
+      "vs_teacher": {
+        "psnr": 14.43,
+        "ssim": 0.5724,
+        "lpips": 0.3576
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_16",
+      "vs_gt": {
+        "psnr": 8.47,
+        "ssim": 0.1979,
+        "lpips": 0.8408
+      },
+      "vs_teacher": {
+        "psnr": 14.55,
+        "ssim": 0.6095,
+        "lpips": 0.3247
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_17",
+      "vs_gt": {
+        "psnr": 8.6,
+        "ssim": 0.2119,
+        "lpips": 0.8552
+      },
+      "vs_teacher": {
+        "psnr": 14.92,
+        "ssim": 0.6188,
+        "lpips": 0.3242
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_18",
+      "vs_gt": {
+        "psnr": 8.92,
+        "ssim": 0.2139,
+        "lpips": 0.8335
+      },
+      "vs_teacher": {
+        "psnr": 14.19,
+        "ssim": 0.5898,
+        "lpips": 0.3461
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_2",
+      "vs_gt": {
+        "psnr": 8.96,
+        "ssim": 0.2215,
+        "lpips": 0.8569
+      },
+      "vs_teacher": {
+        "psnr": 14.03,
+        "ssim": 0.5798,
+        "lpips": 0.3649
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_20",
+      "vs_gt": {
+        "psnr": 9.18,
+        "ssim": 0.2106,
+        "lpips": 0.8524
+      },
+      "vs_teacher": {
+        "psnr": 13.88,
+        "ssim": 0.5568,
+        "lpips": 0.3643
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_21",
+      "vs_gt": {
+        "psnr": 8.37,
+        "ssim": 0.2208,
+        "lpips": 0.8457
+      },
+      "vs_teacher": {
+        "psnr": 14.7,
+        "ssim": 0.6084,
+        "lpips": 0.3563
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_22",
+      "vs_gt": {
+        "psnr": 8.44,
+        "ssim": 0.2174,
+        "lpips": 0.8132
+      },
+      "vs_teacher": {
+        "psnr": 14.99,
+        "ssim": 0.6339,
+        "lpips": 0.3064
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_23",
+      "vs_gt": {
+        "psnr": 8.24,
+        "ssim": 0.2008,
+        "lpips": 0.8311
+      },
+      "vs_teacher": {
+        "psnr": 13.6,
+        "ssim": 0.5592,
+        "lpips": 0.3696
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_24",
+      "vs_gt": {
+        "psnr": 8.79,
+        "ssim": 0.2261,
+        "lpips": 0.8451
+      },
+      "vs_teacher": {
+        "psnr": 14.58,
+        "ssim": 0.6021,
+        "lpips": 0.3533
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_25",
+      "vs_gt": {
+        "psnr": 9.92,
+        "ssim": 0.2304,
+        "lpips": 0.8099
+      },
+      "vs_teacher": {
+        "psnr": 15.4,
+        "ssim": 0.619,
+        "lpips": 0.3256
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_26",
+      "vs_gt": {
+        "psnr": 8.84,
+        "ssim": 0.2257,
+        "lpips": 0.8264
+      },
+      "vs_teacher": {
+        "psnr": 13.56,
+        "ssim": 0.5679,
+        "lpips": 0.3756
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_27",
+      "vs_gt": {
+        "psnr": 9.23,
+        "ssim": 0.2184,
+        "lpips": 0.8271
+      },
+      "vs_teacher": {
+        "psnr": 14.39,
+        "ssim": 0.5885,
+        "lpips": 0.3495
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_28",
+      "vs_gt": {
+        "psnr": 8.52,
+        "ssim": 0.2173,
+        "lpips": 0.8561
+      },
+      "vs_teacher": {
+        "psnr": 15.08,
+        "ssim": 0.6265,
+        "lpips": 0.3093
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_29",
+      "vs_gt": {
+        "psnr": 8.37,
+        "ssim": 0.2097,
+        "lpips": 0.8709
+      },
+      "vs_teacher": {
+        "psnr": 14.3,
+        "ssim": 0.5965,
+        "lpips": 0.3502
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_32",
+      "vs_gt": {
+        "psnr": 8.56,
+        "ssim": 0.212,
+        "lpips": 0.8667
+      },
+      "vs_teacher": {
+        "psnr": 13.86,
+        "ssim": 0.5738,
+        "lpips": 0.3648
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_33",
+      "vs_gt": {
+        "psnr": 9.06,
+        "ssim": 0.1924,
+        "lpips": 0.8437
+      },
+      "vs_teacher": {
+        "psnr": 13.32,
+        "ssim": 0.5224,
+        "lpips": 0.3954
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_34",
+      "vs_gt": {
+        "psnr": 7.81,
+        "ssim": 0.2192,
+        "lpips": 0.8477
+      },
+      "vs_teacher": {
+        "psnr": 14.55,
+        "ssim": 0.6174,
+        "lpips": 0.341
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_36",
+      "vs_gt": {
+        "psnr": 8.02,
+        "ssim": 0.2101,
+        "lpips": 0.8505
+      },
+      "vs_teacher": {
+        "psnr": 13.13,
+        "ssim": 0.5628,
+        "lpips": 0.3853
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_37",
+      "vs_gt": {
+        "psnr": 8.4,
+        "ssim": 0.2034,
+        "lpips": 0.8422
+      },
+      "vs_teacher": {
+        "psnr": 14.55,
+        "ssim": 0.6066,
+        "lpips": 0.3401
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_38",
+      "vs_gt": {
+        "psnr": 8.85,
+        "ssim": 0.2072,
+        "lpips": 0.8459
+      },
+      "vs_teacher": {
+        "psnr": 14.26,
+        "ssim": 0.5726,
+        "lpips": 0.3483
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_39",
+      "vs_gt": {
+        "psnr": 9.22,
+        "ssim": 0.2033,
+        "lpips": 0.8494
+      },
+      "vs_teacher": {
+        "psnr": 14.0,
+        "ssim": 0.5464,
+        "lpips": 0.3769
+      }
+    }
+  ]
+}

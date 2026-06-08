@@ -50,6 +50,22 @@ O(N²); linear is ~linear = O(N)). At N=295k (768px, 32 frames) the 75%-linear m
 climbing — exactly SANA-WM's high-res / minute-scale regime. (Memory is comparable, ~+1GB for linear: the
 FP32 φ + KV state offset FlashAttention's O(N) memory; the win here is SPEED, not memory. bf16 φ would help.)
 
+## Quality vs linearization ratio (output-distill, vs-teacher fidelity)
+
+Sweeping the fraction of self-attn blocks linearized — a clean monotonic quality↔efficiency knob:
+
+| linear % | vs_TEACHER PSNR↑ | SSIM↑ | LPIPS↓ |
+|---|---|---|---|
+| 25% | 14.32 | 0.590 | 0.351 |
+| 50% | 13.01 | 0.509 | 0.421 |
+| 75% | 12.24 | 0.439 | 0.497 |
+| 87.5% | 10.99 | 0.352 | 0.619 |
+
+Strictly monotonic on every metric: more linearization → further from the teacher, smoothly. The attn-transfer
+floor (attn_mse 0.057 / 0.066 / 0.099 / 0.13) and the output-distill floor (0.0011 / 0.0020 / 0.0025 / 0.0037)
+are likewise monotonic — the per-layer mismatch propagates predictably to generation. Practically, 50–75% (the
+SANA-WM hybrid range) trades ~0.08–0.15 LPIPS-vs-teacher for the O(N) speedup that kicks in past N≈66k.
+
 ## Takeaways
 - The **distillation recipe works**: output-distillation + lower ratio brings a linearized 2B video DiT
   measurably toward its softmax teacher's generation, no pretraining (~0.4–0.6% trainable, LoRA+AttnRes+φ).
