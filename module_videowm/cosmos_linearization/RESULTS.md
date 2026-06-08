@@ -102,6 +102,26 @@ even slightly higher on aesthetic/imaging). Combined: linearization + output-dis
 teacher's quality (FVD + VBench) while delivering the O(N) speedup — the SANA-WM result reached by
 distillation, no pretraining.
 
+## Native-resolution check — 480px DAVIS (DDP-2, GBS=8)
+
+Re-ran at DAVIS's NATIVE 480px (256px was downscaled) to be credible vs SANA's native 720p, on both GPUs
+(manual-all-reduce DDP-2, GBS = micro2·accum2·world2 = 8, aligned with the 256px runs).
+
+| metric | 256px | 480px (native) |
+|---|---|---|
+| FVD teacher ‖ real | 518.6 | **351.7** |
+| FVD lin ‖ real | 454.1 | 364.6 |
+| FVD lin ‖ teacher | 75.2 | 93.8 |
+| lin-vs-teacher LPIPS | 0.375 | 0.546 |
+
+**Two honest findings:** (1) at native 480px the TEACHER is much stronger (FVD vs real 518→352 — 256px was
+hampering it), and the 75%-linear student still matches it in ABSOLUTE quality (FVD lin‖real 365 ≈ teacher
+352, gap 13). (2) But exact lin-vs-teacher FIDELITY is *lower* at 480px (LPIPS 0.55 vs 0.375, FVD 94 vs 75):
+more spatial detail = harder for linear attention to reproduce the teacher exactly. So linearization preserves
+*quality* (absolute FVD ≈ teacher) even where it can't perfectly *reproduce* the teacher at higher resolution.
+SANA-WM reports VBench overall 80.62/81.89 at native 720p (different base model + 720p + their pipeline — a base
+comparison, not our linearization contribution; ours is student≈teacher).
+
 ## Takeaways
 - The **distillation recipe works**: output-distillation + lower ratio brings a linearized 2B video DiT
   measurably toward its softmax teacher's generation, no pretraining (~0.4–0.6% trainable, LoRA+AttnRes+φ).
