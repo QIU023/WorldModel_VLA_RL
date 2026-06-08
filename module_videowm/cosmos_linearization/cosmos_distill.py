@@ -150,6 +150,43 @@ def stage2_flow_finetune(model, data_iter, steps=3000, lr=2e-4, p_mean=0.0, p_st
     return model
 
 
+def stage2_output_distill(model, teacher, data_iter, steps=2000, lr=2e-4, p_mean=0.0, p_std=1.0,
+                          log_every=20, save_dir=None):
+    """OUTPUT distillation (the direct 逼近教师 objective): match the linearized student's velocity to the
+    PRISTINE softmax teacher's velocity on identical noised inputs. Trains feat_map+LoRA+AttnRes. `teacher` is
+    a clean CosmosTransformer3DModel (no surgery), frozen. This optimizes lin-vs-teacher fidelity directly,
+    unlike flow-matching (which only fits the data)."""
+    params = _trainable(model, ("feat_map", "lora", "attnres_coord"))
+    teacher.eval()
+    for p in teacher.parameters():
+        p.requires_grad_(False)
+    opt = torch.optim.AdamW(params, lr=lr, weight_decay=0.0, betas=(0.9, 0.95))
+    print(f"[s2-distill] {sum(p.numel() for p in params)/1e6:.2f}M trainable, lr={lr}, steps={steps}", flush=True)
+    model.train(); t0 = time.time(); ema = None; oom = 0
+    for step in range(steps):
+        batch = next(data_iter)
+        try:
+            fwd, _v, gen_mask = make_noisy_input(batch, model, p_mean, p_std)
+            with torch.no_grad():
+                tgt = teacher(**fwd, return_dict=False)[0]              # pristine teacher velocity
+            pred = model(**fwd, return_dict=False)[0]                   # linearized student velocity
+            diff = (pred.float() - tgt.float()) * gen_mask.float()
+            loss = (diff ** 2).sum() / gen_mask.float().sum().clamp_min(1.0) / pred.shape[1]
+            opt.zero_grad(); loss.backward()
+            torch.nn.utils.clip_grad_norm_(params, 1.0); opt.step()
+        except torch.cuda.OutOfMemoryError:
+            oom += 1; opt.zero_grad(set_to_none=True); torch.cuda.empty_cache()
+            print(f"[s2-distill] step {step} OOM-skip (#{oom})", flush=True); continue
+        ema = loss.item() if ema is None else 0.98 * ema + 0.02 * loss.item()
+        if step % log_every == 0:
+            print(f"[s2-distill] step {step}/{steps}  distill_mse {loss.item():.4f} (ema {ema:.4f})  {time.time()-t0:.0f}s", flush=True)
+        if save_dir and step > 0 and step % 500 == 0:
+            _save(model, save_dir, step, tag="s2d")
+    if save_dir:
+        _save(model, save_dir, steps, tag="s2d")
+    return model
+
+
 def _save(model, save_dir, step, tag="s1"):
     os.makedirs(save_dir, exist_ok=True)
     sd = {k: v.detach().cpu() for k, v in model.state_dict().items()
@@ -175,6 +212,8 @@ def main():
     ap.add_argument("--latents", type=str, default=None)
     ap.add_argument("--resume", type=str, default=None, help="linstate safetensors to warm-start (stage-1 -> stage-2)")
     ap.add_argument("--ratio", type=float, default=0.75)
+    ap.add_argument("--method", choices=["flow", "distill"], default="flow",
+                    help="stage-2 objective: flow=flow-matching on data, distill=match pristine teacher velocity (逼近教师)")
     ap.add_argument("--steps", type=int, default=2000)
     ap.add_argument("--batch", type=int, default=1)
     ap.add_argument("--lr", type=float, default=None)
@@ -201,10 +240,16 @@ def main():
         di = (clip for _ in iter(int, 1))
         print("--- stage1 smoke ---")
         stage1_attn_transfer(m, lin, di, steps=12, lr=1e-2, log_every=4, save_dir=None)
-        print("--- stage2 smoke ---")
+        print("--- stage2 flow smoke ---")
         di = (clip for _ in iter(int, 1))
-        stage2_flow_finetune(m, di, steps=12, lr=1e-3, log_every=4, save_dir=None)
-        print("=== SMOKE PASS: stage1 attn-transfer + stage2 flow-matching loops run ===")
+        stage2_flow_finetune(m, di, steps=8, lr=1e-3, log_every=4, save_dir=None)
+        print("--- stage2 output-distill smoke ---")
+        teacher = CosmosTransformer3DModel(num_layers=6, num_attention_heads=4, attention_head_dim=32,
+                                           text_embed_dim=1024, max_size=(16, 16, 16), patch_size=(1, 2, 2),
+                                           in_channels=17, out_channels=16, concat_padding_mask=True)
+        di = (clip for _ in iter(int, 1))
+        stage2_output_distill(m, teacher, di, steps=8, lr=1e-3, log_every=4, save_dir=None)
+        print("=== SMOKE PASS: stage1 attn-transfer + stage2 flow + stage2 output-distill loops run ===")
         return
 
     assert args.transformer, "--transformer required"
@@ -216,9 +261,13 @@ def main():
     if args.stage == 1:
         stage1_attn_transfer(model, linear_layers, di, steps=args.steps, lr=args.lr or 1e-3,
                              p_mean=args.p_mean, p_std=args.p_std, save_dir=args.save)
-    elif args.stage == 2:
+    elif args.stage == 2 and args.method == "flow":
         stage2_flow_finetune(model, di, steps=args.steps, lr=args.lr or 2e-4,
                              p_mean=args.p_mean, p_std=args.p_std, save_dir=args.save)
+    elif args.stage == 2 and args.method == "distill":
+        teacher = load_transformer(args.transformer)   # pristine softmax teacher (no surgery)
+        stage2_output_distill(model, teacher, di, steps=args.steps, lr=args.lr or 2e-4,
+                              p_mean=args.p_mean, p_std=args.p_std, save_dir=args.save)
     else:
         raise ValueError(args.stage)
 
