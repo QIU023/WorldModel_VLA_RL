@@ -29,6 +29,26 @@ T_CONDITIONING = 0.0001 / (0.0001 + 1.0)   # cond frames sit at ~0 flow time (si
 FPS = 16
 
 
+def setup_dist():
+    """Manual DDP: init NCCL if launched via torchrun. Returns (rank, world_size, local_rank). Each rank trains
+    on its own GPU + data shard; grads are averaged across ranks before opt.step (allreduce_grads)."""
+    import torch.distributed as dist
+    if "RANK" in os.environ and int(os.environ.get("WORLD_SIZE", 1)) > 1:
+        dist.init_process_group("nccl")
+        lr = int(os.environ["LOCAL_RANK"]); torch.cuda.set_device(lr)
+        print(f"[ddp] rank {dist.get_rank()}/{dist.get_world_size()} on cuda:{lr}", flush=True)
+        return dist.get_rank(), dist.get_world_size(), lr
+    return 0, 1, 0
+
+
+def allreduce_grads(params, world_size):
+    if world_size > 1:
+        import torch.distributed as dist
+        for p in params:
+            if p.grad is not None:
+                dist.all_reduce(p.grad, op=dist.ReduceOp.AVG)
+
+
 def load_transformer(path, device="cuda", dtype=torch.bfloat16):
     from diffusers import CosmosTransformer3DModel
     m = CosmosTransformer3DModel.from_pretrained(path, torch_dtype=dtype).to(device).eval()
@@ -40,10 +60,10 @@ def load_transformer(path, device="cuda", dtype=torch.bfloat16):
 _BATCH_KEYS = ("clean_latents", "encoder_hidden_states", "cond_indicator", "cond_mask")
 
 
-def latent_batches(latents_dir, batch_size=1):
-    """Yield (possibly stacked) clip batches from cosmos_data.py .pt files. All clips share shape, so we
-    concat batch_size of them along dim 0 -> uses the H200 instead of one-clip-at-a-time. Loops forever."""
-    files = sorted(glob.glob(os.path.join(latents_dir, "*.pt")))
+def latent_batches(latents_dir, batch_size=1, rank=0, world_size=1):
+    """Yield (possibly stacked) clip batches from cosmos_data.py .pt files. Each DDP rank reads a DISJOINT
+    file shard (files[rank::world_size]). All clips share shape, so we concat batch_size of them. Loops forever."""
+    files = sorted(glob.glob(os.path.join(latents_dir, "*.pt")))[rank::world_size]
     assert files, f"no latents in {latents_dir} (run cosmos_data.py first)"
     while True:
         for i in range(0, len(files), batch_size):
@@ -95,11 +115,12 @@ def _trainable(model, groups=("feat_map",)):
 
 
 def stage1_attn_transfer(model, linear_layers, data_iter, steps=2000, lr=1e-3, p_mean=0.0, p_std=1.0,
-                         accum=1, log_every=20, save_dir=None):
-    """Train ONLY Hedgehog phi to match softmax teacher attn1 outputs, on real noised inputs. GBS = micro*accum."""
+                         accum=1, log_every=20, save_dir=None, rank=0, world_size=1):
+    """Train ONLY Hedgehog phi to match softmax teacher attn1 outputs. GBS = micro*accum*world_size (DDP)."""
     feat_params = _trainable(model, ("feat_map",))
     opt = torch.optim.AdamW(feat_params, lr=lr, weight_decay=0.0, betas=(0.9, 0.95))
-    print(f"[stage1] {sum(p.numel() for p in feat_params)/1e6:.2f}M feat_map params, lr={lr}, steps={steps}, accum={accum}", flush=True)
+    if rank == 0:
+        print(f"[stage1] {sum(p.numel() for p in feat_params)/1e6:.2f}M feat_map params, lr={lr}, steps={steps}, accum={accum}, accum*world={accum*world_size}", flush=True)
     model.train(); t0 = time.time(); oom = 0
     for step in range(steps):
         opt.zero_grad(); acc = 0.0; bad = False
@@ -112,13 +133,16 @@ def stage1_attn_transfer(model, linear_layers, data_iter, steps=2000, lr=1e-3, p
             except torch.cuda.OutOfMemoryError:
                 oom += 1; bad = True; torch.cuda.empty_cache(); break
         if bad:
-            opt.zero_grad(set_to_none=True); print(f"[stage1] step {step} OOM-skip (#{oom})", flush=True); continue
+            opt.zero_grad(set_to_none=True)
+            if rank == 0: print(f"[stage1] step {step} OOM-skip (#{oom})", flush=True)
+            continue
+        allreduce_grads(feat_params, world_size)
         torch.nn.utils.clip_grad_norm_(feat_params, 1.0); opt.step()
-        if step % log_every == 0:
+        if rank == 0 and step % log_every == 0:
             print(f"[stage1] step {step}/{steps}  attn_mse {acc/accum:.5f}  {time.time()-t0:.0f}s", flush=True)
-        if save_dir and step > 0 and step % 500 == 0:
+        if rank == 0 and save_dir and step > 0 and step % 500 == 0:
             _save(model, save_dir, step, tag="s1")
-    if save_dir:
+    if rank == 0 and save_dir:
         _save(model, save_dir, steps, tag="s1")
     return model
 
@@ -154,15 +178,16 @@ def stage2_flow_finetune(model, data_iter, steps=3000, lr=2e-4, p_mean=0.0, p_st
 
 
 def stage2_output_distill(model, teacher, data_iter, steps=2000, lr=2e-4, p_mean=0.0, p_std=1.0,
-                          accum=1, log_every=20, save_dir=None):
-    """OUTPUT distillation (the direct 逼近教师 objective): match the linearized student's velocity to the
-    PRISTINE softmax teacher's velocity on identical noised inputs. Trains feat_map+LoRA+AttnRes. GBS=micro*accum."""
+                          accum=1, log_every=20, save_dir=None, rank=0, world_size=1):
+    """OUTPUT distillation (逼近教师): match linearized student velocity to the PRISTINE softmax teacher's
+    velocity on identical noised inputs. Trains feat_map+LoRA+AttnRes. GBS=micro*accum*world_size (DDP)."""
     params = _trainable(model, ("feat_map", "lora", "attnres_coord"))
     teacher.eval()
     for p in teacher.parameters():
         p.requires_grad_(False)
     opt = torch.optim.AdamW(params, lr=lr, weight_decay=0.0, betas=(0.9, 0.95))
-    print(f"[s2-distill] {sum(p.numel() for p in params)/1e6:.2f}M trainable, lr={lr}, steps={steps}, accum={accum}", flush=True)
+    if rank == 0:
+        print(f"[s2-distill] {sum(p.numel() for p in params)/1e6:.2f}M trainable, lr={lr}, steps={steps}, accum={accum}, accum*world={accum*world_size}", flush=True)
     model.train(); t0 = time.time(); ema = None; oom = 0
     for step in range(steps):
         opt.zero_grad(); acc = 0.0; bad = False
@@ -179,14 +204,17 @@ def stage2_output_distill(model, teacher, data_iter, steps=2000, lr=2e-4, p_mean
             except torch.cuda.OutOfMemoryError:
                 oom += 1; bad = True; torch.cuda.empty_cache(); break
         if bad:
-            opt.zero_grad(set_to_none=True); print(f"[s2-distill] step {step} OOM-skip (#{oom})", flush=True); continue
+            opt.zero_grad(set_to_none=True)
+            if rank == 0: print(f"[s2-distill] step {step} OOM-skip (#{oom})", flush=True)
+            continue
+        allreduce_grads(params, world_size)
         torch.nn.utils.clip_grad_norm_(params, 1.0); opt.step()
         ema = acc/accum if ema is None else 0.98 * ema + 0.02 * (acc/accum)
-        if step % log_every == 0:
+        if rank == 0 and step % log_every == 0:
             print(f"[s2-distill] step {step}/{steps}  distill_mse {acc/accum:.4f} (ema {ema:.4f})  {time.time()-t0:.0f}s", flush=True)
-        if save_dir and step > 0 and step % 500 == 0:
+        if rank == 0 and save_dir and step > 0 and step % 500 == 0:
             _save(model, save_dir, step, tag="s2d")
-    if save_dir:
+    if rank == 0 and save_dir:
         _save(model, save_dir, steps, tag="s2d")
     return model
 
@@ -258,23 +286,36 @@ def main():
         return
 
     assert args.transformer, "--transformer required"
-    model = load_transformer(args.transformer)
+    rank, world_size, local_rank = setup_dist()
+    dev = f"cuda:{local_rank}"
+    model = load_transformer(args.transformer, device=dev)
     model, linear_layers, softmax_layers = linearize_cosmos(model, ratio_linear=args.ratio)
     if args.resume:
         _load_linstate(model, args.resume)
-    di = latent_batches(args.latents, batch_size=args.batch)
+    if world_size > 1:   # sync all ranks to rank-0's params (feat_map/LoRA are random-init -> would differ)
+        import torch.distributed as dist
+        for p in model.parameters():
+            dist.broadcast(p.data, src=0)
+        for b in model.buffers():
+            dist.broadcast(b.data, src=0)
+    di = latent_batches(args.latents, batch_size=args.batch, rank=rank, world_size=world_size)
     if args.stage == 1:
         stage1_attn_transfer(model, linear_layers, di, steps=args.steps, lr=args.lr or 1e-3,
-                             p_mean=args.p_mean, p_std=args.p_std, accum=args.accum, save_dir=args.save)
+                             p_mean=args.p_mean, p_std=args.p_std, accum=args.accum, save_dir=args.save,
+                             rank=rank, world_size=world_size)
     elif args.stage == 2 and args.method == "flow":
         stage2_flow_finetune(model, di, steps=args.steps, lr=args.lr or 2e-4,
                              p_mean=args.p_mean, p_std=args.p_std, save_dir=args.save)
     elif args.stage == 2 and args.method == "distill":
-        teacher = load_transformer(args.transformer)   # pristine softmax teacher (no surgery)
+        teacher = load_transformer(args.transformer, device=dev)   # pristine softmax teacher (no surgery)
         stage2_output_distill(model, teacher, di, steps=args.steps, lr=args.lr or 2e-4,
-                              p_mean=args.p_mean, p_std=args.p_std, accum=args.accum, save_dir=args.save)
+                              p_mean=args.p_mean, p_std=args.p_std, accum=args.accum, save_dir=args.save,
+                              rank=rank, world_size=world_size)
     else:
         raise ValueError(args.stage)
+    if world_size > 1:
+        import torch.distributed as dist
+        dist.barrier(); dist.destroy_process_group()
 
 
 if __name__ == "__main__":
