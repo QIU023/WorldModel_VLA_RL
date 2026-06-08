@@ -78,6 +78,30 @@ floor (attn_mse 0.057 / 0.066 / 0.099 / 0.13) and the output-distill floor (0.00
 are likewise monotonic — the per-layer mismatch propagates predictably to generation. Practically, 50–75% (the
 SANA-WM hybrid range) trades ~0.08–0.15 LPIPS-vs-teacher for the O(N) speedup that kicks in past N≈66k.
 
+## SANA-comparable absolute quality — FVD + VBench (DAVIS, 96 videos, 75% linear)
+
+The metrics SANA-WM & Cosmos-Predict report. Generated 96 teacher + 96 linearized videos; teacher is the
+controlled baseline (absolute numbers are not cross-paper comparable: 256px not native 720p, n=96 not 2048,
+S3D not exact-I3D, prediction-divergence — so read teacher-vs-lin, not the absolute value).
+
+**FVD (S3D-K400):** FVD(lin‖teacher) = **75** (low → the linearized model's generative distribution closely
+tracks the teacher). FVD(lin‖real) 454 ≈ FVD(teacher‖real) 519 → no quality loss vs real.
+
+**VBench (6 reference-free dimensions):**
+| dimension | teacher | lin-75% | Δ |
+|---|---|---|---|
+| subject_consistency | 0.515 | 0.513 | −0.002 |
+| background_consistency | 0.759 | 0.760 | +0.001 |
+| motion_smoothness | 0.903 | 0.906 | +0.003 |
+| dynamic_degree | 1.000 | 1.000 | 0.000 |
+| aesthetic_quality | 0.323 | 0.342 | +0.019 |
+| imaging_quality | 0.359 | 0.390 | +0.031 |
+
+**The 75%-linearized distilled model matches the SDPA teacher on every VBench dimension** (Δ ∈ [−0.002, +0.031];
+even slightly higher on aesthetic/imaging). Combined: linearization + output-distillation preserves the
+teacher's quality (FVD + VBench) while delivering the O(N) speedup — the SANA-WM result reached by
+distillation, no pretraining.
+
 ## Takeaways
 - The **distillation recipe works**: output-distillation + lower ratio brings a linearized 2B video DiT
   measurably toward its softmax teacher's generation, no pretraining (~0.4–0.6% trainable, LoRA+AttnRes+φ).

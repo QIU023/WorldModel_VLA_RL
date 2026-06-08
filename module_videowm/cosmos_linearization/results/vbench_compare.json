@@ -1,0 +1,18 @@
+{
+  "teacher": {
+    "subject_consistency": 0.5149519953928186,
+    "background_consistency": 0.7592879704066685,
+    "motion_smoothness": 0.9029816314953716,
+    "dynamic_degree": 1.0,
+    "aesthetic_quality": 0.32304617669433355,
+    "imaging_quality": 0.3592896041719391
+  },
+  "lin_r75": {
+    "subject_consistency": 0.5133241861684448,
+    "background_consistency": 0.7600751150222051,
+    "motion_smoothness": 0.9055436758396969,
+    "dynamic_degree": 1.0,
+    "aesthetic_quality": 0.3418010122453173,
+    "imaging_quality": 0.3900005873386888
+  }
+}
