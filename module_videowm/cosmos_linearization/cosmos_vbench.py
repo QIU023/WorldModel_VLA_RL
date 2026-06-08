@@ -10,6 +10,11 @@ import os, sys, glob, json, argparse
 sys.path.insert(0, "/home/wm-vla-rl/_ext")
 import torch, numpy as np, imageio
 
+# VBench's dimension checkpoints (AMT/RAFT/MUSIQ...) predate torch 2.6's weights_only=True default and contain
+# typing.OrderedDict etc. They are trusted (official VBench releases) -> force weights_only=False.
+_orig_load = torch.load
+torch.load = lambda *a, **k: _orig_load(*a, **{**k, "weights_only": False})
+
 
 def write_mp4s(pt_path, out_dir, fps=12, limit=None):
     os.makedirs(out_dir, exist_ok=True)
