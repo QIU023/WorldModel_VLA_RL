@@ -21,33 +21,7 @@ sys.path.insert(0, "/home/wm-vla-rl/_ext")
 import numpy as np
 import torch
 from PIL import Image
-
-LIBERO_IMG = "/home/wm-vla-rl/_ext/WorldVLA/worldvla/processed_data/libero_10_img_action_256"
-
-
-def humanize_task(traj_dir):
-    name = os.path.basename(os.path.dirname(traj_dir))
-    parts = name.split("_")
-    while parts and (parts[0].isupper() or parts[0][:5].upper() == "SCENE" or parts[0].isdigit()
-                     or parts[0][-1].isdigit()):
-        parts.pop(0)
-    desc = " ".join(parts).strip()
-    return f"A robot arm performs a manipulation task: {desc}." if desc else "A robot arm manipulation video."
-
-
-def eval_trajs(n, n_eval=32):
-    trajs = sorted(glob.glob(os.path.join(LIBERO_IMG, "*", "trj_*")))
-    trajs = [t for t in trajs if os.path.isdir(os.path.join(t, "imgs"))][-n_eval:]
-    return trajs[:n]
-
-
-def load_clip_frames(traj, num_frames, size):
-    fs = sorted(glob.glob(os.path.join(traj, "imgs", "image_*.png")),
-                key=lambda p: int(p.split("_")[-1].split(".")[0]))
-    if len(fs) < num_frames:
-        return None
-    sel = fs[:num_frames]
-    return [Image.open(p).convert("RGB").resize((size, size)) for p in sel]
+from cosmos_frames import list_sequences, load_frames, prompt_for
 
 
 # ---------------- metrics ----------------
@@ -137,6 +111,7 @@ def main():
     ap.add_argument("--out", default="cosmos_gen_out")
     ap.add_argument("--teacher_dir", default="cosmos_gen_out/teacher")
     ap.add_argument("--resume", default=None)
+    ap.add_argument("--dataset", default="libero", choices=["libero", "davis"])
     ap.add_argument("--ratio", type=float, default=0.75)
     ap.add_argument("--tag", default="lin")
     ap.add_argument("--n", type=int, default=24)
@@ -154,20 +129,20 @@ def main():
 
     save_dir = os.path.join(args.out, "teacher" if args.mode == "teacher" else args.tag)
     os.makedirs(save_dir, exist_ok=True)
-    trajs = eval_trajs(args.n)
-    print(f"[gen] mode={args.mode} n={len(trajs)} {args.size}px {args.num_frames}f {args.steps}steps", flush=True)
+    seqs = list_sequences(args.dataset, "eval")[:args.n]
+    print(f"[gen] mode={args.mode} dataset={args.dataset} n={len(seqs)} {args.size}px {args.num_frames}f {args.steps}steps", flush=True)
 
     rows, vs_gt, vs_tea = [], [], []
-    for i, traj in enumerate(trajs):
-        gt = load_clip_frames(traj, args.num_frames, args.size)
+    for i, seq in enumerate(seqs):
+        gt = load_frames(args.dataset, seq, args.num_frames, args.size)
         if gt is None:
             continue
-        prompt = humanize_task(traj)
+        prompt = prompt_for(args.dataset, seq)
         vid = generate(pipe, gt[0], prompt, args.size, args.size, args.num_frames, args.steps, args.guidance,
                        args.seed + i, device)
         gen_u8 = to_uint8(vid); gt_u8 = to_uint8(gt)
         m_gt = trio(gen_u8, gt_u8, device); vs_gt.append(m_gt)
-        rec = {"traj": os.path.basename(os.path.dirname(traj)) + "/" + os.path.basename(traj), "vs_gt": m_gt}
+        rec = {"seq": os.path.basename(str(seq).rstrip("/")), "vs_gt": m_gt}
         # save generated frames (uint8) for cross-model comparison
         torch.save({"frames": torch.from_numpy(gen_u8)}, os.path.join(save_dir, f"gen_{i:04d}.pt"))
         if args.mode == "lineval":

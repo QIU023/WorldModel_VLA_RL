@@ -17,41 +17,19 @@ Smoke (CPU, tiny): python cosmos_data.py --smoke
 """
 import os, sys, glob, json, argparse, random
 import torch
-
-LIBERO_IMG = "/home/wm-vla-rl/_ext/WorldVLA/worldvla/processed_data/libero_10_img_action_256"
-
-
-def humanize_task(traj_dir):
-    """'.../KITCHEN_SCENE8_put_both_moka_pots_on_the_stove/trj_15' -> 'put both moka pots on the stove'."""
-    name = os.path.basename(os.path.dirname(traj_dir))     # KITCHEN_SCENE8_put_both_...
-    parts = name.split("_")
-    # drop the leading SCENE tag tokens (KITCHEN, SCENE8) until first lowercase verb-ish token
-    while parts and (parts[0].isupper() or parts[0][:5].upper() == "SCENE" or parts[0].isdigit()
-                     or parts[0][-1].isdigit()):
-        parts.pop(0)
-    desc = " ".join(parts).strip()
-    return f"A robot arm performs a manipulation task: {desc}." if desc else "A robot arm manipulation video."
+from cosmos_frames import list_sequences, load_frames, num_frames_avail, prompt_for
 
 
-def list_trajs(split, n_eval=32):
-    trajs = sorted(glob.glob(os.path.join(LIBERO_IMG, "*", "trj_*")))
-    trajs = [t for t in trajs if os.path.isdir(os.path.join(t, "imgs"))]
-    return trajs[:-n_eval] if split == "train" else trajs[-n_eval:]
-
-
-def load_clip(traj, frames, size, rng):
+def load_clip(dataset, seq, frames, size, rng):
     """Load `frames` consecutive frames (random start) -> [1,3,T,H,W] in [-1,1]."""
-    from PIL import Image
-    fs = sorted(glob.glob(os.path.join(traj, "imgs", "image_*.png")),
-                key=lambda p: int(p.split("_")[-1].split(".")[0]))
-    if len(fs) < frames:
+    n = num_frames_avail(dataset, seq)
+    if n < frames:
         return None
-    start = rng.randint(0, len(fs) - frames)
-    sel = fs[start:start + frames]
-    arr = []
-    for p in sel:
-        im = Image.open(p).convert("RGB").resize((size, size))
-        arr.append(torch.from_numpy(__import__("numpy").asarray(im)).float())
+    start = rng.randint(0, n - frames)
+    pil = load_frames(dataset, seq, frames, size, start=start)
+    if pil is None:
+        return None
+    arr = [torch.from_numpy(__import__("numpy").asarray(im)).float() for im in pil]
     v = torch.stack(arr).permute(3, 0, 1, 2).unsqueeze(0)   # [1,3,T,H,W]
     return v / 127.5 - 1.0
 
@@ -69,6 +47,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", type=str, default=None, help="Cosmos snapshot dir (has vae/, text_encoder/, tokenizer/)")
     ap.add_argument("--out", type=str, default="/home/cosmos_lin_data")
+    ap.add_argument("--dataset", type=str, default="libero", choices=["libero", "davis"])
     ap.add_argument("--split", type=str, default="train", choices=["train", "eval"])
     ap.add_argument("--n_clips", type=int, default=256)
     ap.add_argument("--frames", type=int, default=29, help="pixel frames per clip -> (frames-1)//4+1 latent frames")
@@ -83,9 +62,12 @@ def main():
         Tl = (5 - 1) // 4 + 1
         ci, cm, pm = build_masks(Tl, 4, 4, 32, 32, 1, "cpu", torch.float32)
         print(f"[smoke] Tl={Tl} cond_indicator{tuple(ci.shape)} cond_mask{tuple(cm.shape)} padding_mask{tuple(pm.shape)}")
-        print("[smoke] humanize:", humanize_task(os.path.join(LIBERO_IMG, "KITCHEN_SCENE8_put_both_moka_pots_on_the_stove", "trj_15")))
-        ts = list_trajs("train"); print(f"[smoke] {len(ts)} train trajs, e.g. {os.path.basename(os.path.dirname(ts[0])) if ts else 'NONE'}")
-        print("=== cosmos_data SMOKE PASS (mask/normalize/humanize logic) ===")
+        for ds in ("libero", "davis"):
+            ts = list_sequences(ds, "train")
+            ex = ts[0] if ts else None
+            print(f"[smoke] {ds}: {len(ts)} train seqs, e.g. {os.path.basename(str(ex).rstrip('/')) if ex else 'NONE'}"
+                  + (f" prompt='{prompt_for(ds, ex)}'" if ex else ""))
+        print("=== cosmos_data SMOKE PASS (mask/normalize/dataset logic) ===")
         return
 
     assert args.model, "--model required (Cosmos snapshot dir)"
@@ -108,8 +90,8 @@ def main():
 
     os.makedirs(args.out, exist_ok=True)
     rng = random.Random(args.seed)
-    trajs = list_trajs(args.split)
-    print(f"[data] {len(trajs)} {args.split} trajs -> encoding {args.n_clips} clips to {args.out}", flush=True)
+    seqs = list_sequences(args.dataset, args.split)
+    print(f"[data] {args.dataset}: {len(seqs)} {args.split} seqs -> encoding {args.n_clips} clips to {args.out}", flush=True)
 
     @torch.no_grad()
     def encode_text(prompt):
@@ -122,9 +104,9 @@ def main():
         return emb.cpu()
 
     n = 0; tries = 0
-    while n < args.n_clips and tries < args.n_clips * 4:
-        traj = trajs[tries % len(trajs)]; tries += 1
-        v = load_clip(traj, args.frames, args.size, rng)
+    while n < args.n_clips and tries < args.n_clips * 8:
+        seq = seqs[tries % len(seqs)]; tries += 1
+        v = load_clip(args.dataset, seq, args.frames, args.size, rng)
         if v is None:
             continue
         v = v.to(dev, torch.float32)
@@ -135,11 +117,11 @@ def main():
         B, C, Tl, Hl, Wl = z.shape
         H, W = args.size, args.size
         ci, cm, pm = build_masks(Tl, Hl, Wl, H, W, num_cond_lat, "cpu", dt)
-        prompt = humanize_task(traj)
+        prompt = prompt_for(args.dataset, seq)
         emb = encode_text(prompt)
         torch.save({"clean_latents": z.to(dt).cpu(), "encoder_hidden_states": emb,
                     "cond_indicator": ci, "cond_mask": cm, "padding_mask": pm,
-                    "prompt": prompt, "traj": traj}, os.path.join(args.out, f"clip_{n:05d}.pt"))
+                    "prompt": prompt, "seq": seq}, os.path.join(args.out, f"clip_{n:05d}.pt"))
         n += 1
         if n % 20 == 0:
             print(f"[data] {n}/{args.n_clips}  latent{tuple(z.shape)}  '{prompt[:50]}'", flush=True)
