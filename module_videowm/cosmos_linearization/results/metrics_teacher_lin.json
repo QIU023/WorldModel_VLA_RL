@@ -1,0 +1,208 @@
+{
+  "summary": {
+    "mode": "teacher",
+    "tag": "lin",
+    "ratio": 0.75,
+    "resume": null,
+    "n": 24,
+    "vs_gt": {
+      "psnr": 8.6117,
+      "ssim": 0.2079,
+      "lpips": 0.8331
+    }
+  },
+  "rows": [
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_10",
+      "vs_gt": {
+        "psnr": 8.44,
+        "ssim": 0.2169,
+        "lpips": 0.8518
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_12",
+      "vs_gt": {
+        "psnr": 8.73,
+        "ssim": 0.2158,
+        "lpips": 0.8355
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_13",
+      "vs_gt": {
+        "psnr": 9.23,
+        "ssim": 0.2019,
+        "lpips": 0.8139
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_16",
+      "vs_gt": {
+        "psnr": 8.02,
+        "ssim": 0.1864,
+        "lpips": 0.8338
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_17",
+      "vs_gt": {
+        "psnr": 8.66,
+        "ssim": 0.2083,
+        "lpips": 0.8345
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_18",
+      "vs_gt": {
+        "psnr": 8.59,
+        "ssim": 0.2061,
+        "lpips": 0.827
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_2",
+      "vs_gt": {
+        "psnr": 8.59,
+        "ssim": 0.2226,
+        "lpips": 0.8331
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_20",
+      "vs_gt": {
+        "psnr": 8.93,
+        "ssim": 0.2043,
+        "lpips": 0.841
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_21",
+      "vs_gt": {
+        "psnr": 8.3,
+        "ssim": 0.2122,
+        "lpips": 0.8321
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_22",
+      "vs_gt": {
+        "psnr": 8.54,
+        "ssim": 0.2117,
+        "lpips": 0.8159
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_23",
+      "vs_gt": {
+        "psnr": 8.16,
+        "ssim": 0.2019,
+        "lpips": 0.826
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_24",
+      "vs_gt": {
+        "psnr": 8.7,
+        "ssim": 0.226,
+        "lpips": 0.8229
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_25",
+      "vs_gt": {
+        "psnr": 9.39,
+        "ssim": 0.2242,
+        "lpips": 0.808
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_26",
+      "vs_gt": {
+        "psnr": 8.74,
+        "ssim": 0.2134,
+        "lpips": 0.8138
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_27",
+      "vs_gt": {
+        "psnr": 8.94,
+        "ssim": 0.2054,
+        "lpips": 0.8209
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_28",
+      "vs_gt": {
+        "psnr": 8.51,
+        "ssim": 0.198,
+        "lpips": 0.8471
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_29",
+      "vs_gt": {
+        "psnr": 8.41,
+        "ssim": 0.2004,
+        "lpips": 0.8578
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_32",
+      "vs_gt": {
+        "psnr": 8.57,
+        "ssim": 0.2006,
+        "lpips": 0.8577
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_33",
+      "vs_gt": {
+        "psnr": 8.99,
+        "ssim": 0.2,
+        "lpips": 0.8215
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_34",
+      "vs_gt": {
+        "psnr": 7.88,
+        "ssim": 0.2097,
+        "lpips": 0.8425
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_36",
+      "vs_gt": {
+        "psnr": 8.03,
+        "ssim": 0.2195,
+        "lpips": 0.8498
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_37",
+      "vs_gt": {
+        "psnr": 8.29,
+        "ssim": 0.1986,
+        "lpips": 0.8378
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_38",
+      "vs_gt": {
+        "psnr": 8.85,
+        "ssim": 0.2039,
+        "lpips": 0.8404
+      }
+    },
+    {
+      "traj": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy/trj_39",
+      "vs_gt": {
+        "psnr": 9.19,
+        "ssim": 0.2019,
+        "lpips": 0.8299
+      }
+    }
+  ]
+}

@@ -45,15 +45,15 @@ def restore_procs(model, linear_layers, saved):
         a.set_processor(saved[i])
 
 
-def synth_input(model, T):
+def synth_input(model, T, hl=32, wl=32):
     dev = next(model.parameters()).device; dt = next(model.parameters()).dtype
     C = model.config.in_channels - 1
-    x = torch.randn(1, C, T, Hl, Wl, device=dev, dtype=dt)
+    x = torch.randn(1, C, T, hl, wl, device=dev, dtype=dt)
     ci = torch.zeros(1, 1, T, 1, 1, device=dev, dtype=dt); ci[:, :, :1] = 1.0
     return dict(hidden_states=x, timestep=(torch.ones(1, 1, T, 1, 1, device=dev, dtype=dt) * 0.5),
                 encoder_hidden_states=torch.randn(1, 512, model.config.text_embed_dim, device=dev, dtype=dt),
-                condition_mask=ci.expand(1, 1, T, Hl, Wl).contiguous(),
-                padding_mask=torch.zeros(1, 1, 256, 256, device=dev, dtype=dt), fps=16)
+                condition_mask=ci.expand(1, 1, T, hl, wl).contiguous(),
+                padding_mask=torch.zeros(1, 1, hl * 8, wl * 8, device=dev, dtype=dt), fps=16)
 
 
 @torch.no_grad()
@@ -74,11 +74,12 @@ def efficiency(args):
         _load_linstate(model, args.resume)
     model.eval()
     frames = [int(x) for x in args.frames.split(",")]
+    hl = wl = args.size // 8
     rows = []
     for T in frames:
-        N = T * Hl * Wl
-        rec = {"T": T, "N_tokens": N}
-        fwd = synth_input(model, T)
+        N = T * hl * wl
+        rec = {"T": T, "size": args.size, "N_tokens": N}
+        fwd = synth_input(model, T, hl, wl)
         # linear (linearized model as-is)
         try:
             lt, lm = time_forward(model, fwd)
@@ -147,6 +148,7 @@ def main():
     ap.add_argument("--resume", type=str, default=None)
     ap.add_argument("--latents", type=str, default="/home/cosmos_lin_data_eval")
     ap.add_argument("--frames", type=str, default="4,8,16,32,48,64")
+    ap.add_argument("--size", type=int, default=256, help="pixel resolution (efficiency: pushes N=T*(size/8)^2)")
     ap.add_argument("--n_clips", type=int, default=32)
     ap.add_argument("--p_mean", type=float, default=0.0)
     ap.add_argument("--p_std", type=float, default=1.0)
