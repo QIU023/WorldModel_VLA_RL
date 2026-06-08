@@ -34,11 +34,21 @@ self-attn blocks → Hedgehog linear), distilled in two stages.
 | 32 | 32 768 | 0.175 / 5.11 | 0.154 / 4.87 | 0.88× |
 | 64 | 65 536 | 0.352 / 6.06 | 0.354 / 5.72 | 1.01× |
 
-**Honest negative at these scales:** linear attention does NOT beat FlashAttention-softmax until ~T=64
-(N≈66k), and only at parity there. Reasons: (1) FlashAttention softmax is already O(N) memory + very fast;
-(2) our Hedgehog φ runs in FP32 for stability (constant overhead); (3) N≤66k is too small — the O(N) win is
-asymptotic (SANA-WM's efficiency claim is at *minute-scale* video = millions of tokens). **Next:** push N via
-higher resolution / longer sequences to locate the crossover; optionally bf16 the linear kernel.
+At 256px (N≤66k) linear only reaches PARITY (FlashAttention-softmax is fast + O(N)-mem; our φ is FP32). But
+pushing N via resolution reveals the crossover + a growing O(N) win:
+
+| resolution | T | N tokens | linear s | softmax s | **speedup** |
+|---|---|---|---|---|---|
+| 512px | 16 | 65 536 | 0.349 | 0.350 | 1.00× (crossover) |
+| 512px | 32 | 131 072 | 0.740 | 0.897 | **1.21×** |
+| 512px | 64 | 262 144 | 1.689 | 2.610 | **1.54×** |
+| 768px | 16 | 147 456 | 0.828 | 1.035 | **1.25×** |
+| 768px | 32 | 294 912 | 1.889 | 3.035 | **1.61×** |
+
+**Crossover at N≈66k; beyond it linear scales better and the gap grows** (softmax time is super-linear in N =
+O(N²); linear is ~linear = O(N)). At N=295k (768px, 32 frames) the 75%-linear model is **1.61× faster** and
+climbing — exactly SANA-WM's high-res / minute-scale regime. (Memory is comparable, ~+1GB for linear: the
+FP32 φ + KV state offset FlashAttention's O(N) memory; the win here is SPEED, not memory. bf16 φ would help.)
 
 ## Takeaways
 - The **distillation recipe works**: output-distillation + lower ratio brings a linearized 2B video DiT
