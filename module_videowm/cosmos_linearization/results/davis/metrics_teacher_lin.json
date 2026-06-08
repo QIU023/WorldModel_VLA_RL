@@ -1,0 +1,144 @@
+{
+  "summary": {
+    "mode": "teacher",
+    "tag": "lin",
+    "ratio": 0.75,
+    "resume": null,
+    "n": 16,
+    "vs_gt": {
+      "psnr": 7.8863,
+      "ssim": 0.1431,
+      "lpips": 0.8362
+    }
+  },
+  "rows": [
+    {
+      "seq": "shooting",
+      "vs_gt": {
+        "psnr": 7.77,
+        "ssim": 0.1426,
+        "lpips": 0.8172
+      }
+    },
+    {
+      "seq": "skate-park",
+      "vs_gt": {
+        "psnr": 7.22,
+        "ssim": 0.2002,
+        "lpips": 0.8462
+      }
+    },
+    {
+      "seq": "snowboard",
+      "vs_gt": {
+        "psnr": 7.36,
+        "ssim": 0.1095,
+        "lpips": 0.8149
+      }
+    },
+    {
+      "seq": "soapbox",
+      "vs_gt": {
+        "psnr": 7.65,
+        "ssim": 0.1411,
+        "lpips": 0.853
+      }
+    },
+    {
+      "seq": "soccerball",
+      "vs_gt": {
+        "psnr": 8.16,
+        "ssim": 0.0786,
+        "lpips": 0.8326
+      }
+    },
+    {
+      "seq": "stroller",
+      "vs_gt": {
+        "psnr": 8.72,
+        "ssim": 0.1513,
+        "lpips": 0.8149
+      }
+    },
+    {
+      "seq": "stunt",
+      "vs_gt": {
+        "psnr": 6.94,
+        "ssim": 0.1661,
+        "lpips": 0.8095
+      }
+    },
+    {
+      "seq": "surf",
+      "vs_gt": {
+        "psnr": 7.33,
+        "ssim": 0.1704,
+        "lpips": 0.8263
+      }
+    },
+    {
+      "seq": "swing",
+      "vs_gt": {
+        "psnr": 8.49,
+        "ssim": 0.1516,
+        "lpips": 0.8548
+      }
+    },
+    {
+      "seq": "tennis",
+      "vs_gt": {
+        "psnr": 8.29,
+        "ssim": 0.1578,
+        "lpips": 0.8493
+      }
+    },
+    {
+      "seq": "tractor-sand",
+      "vs_gt": {
+        "psnr": 7.97,
+        "ssim": 0.1715,
+        "lpips": 0.865
+      }
+    },
+    {
+      "seq": "train",
+      "vs_gt": {
+        "psnr": 8.59,
+        "ssim": 0.1172,
+        "lpips": 0.8474
+      }
+    },
+    {
+      "seq": "tuk-tuk",
+      "vs_gt": {
+        "psnr": 8.18,
+        "ssim": 0.1315,
+        "lpips": 0.8473
+      }
+    },
+    {
+      "seq": "upside-down",
+      "vs_gt": {
+        "psnr": 7.41,
+        "ssim": 0.1214,
+        "lpips": 0.8573
+      }
+    },
+    {
+      "seq": "varanus-cage",
+      "vs_gt": {
+        "psnr": 8.21,
+        "ssim": 0.1321,
+        "lpips": 0.8146
+      }
+    },
+    {
+      "seq": "walking",
+      "vs_gt": {
+        "psnr": 7.89,
+        "ssim": 0.1464,
+        "lpips": 0.8287
+      }
+    }
+  ]
+}

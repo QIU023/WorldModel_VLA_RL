@@ -1,0 +1,229 @@
+{
+  "summary": {
+    "mode": "lineval",
+    "tag": "r50_s2d",
+    "ratio": 0.5,
+    "resume": "/home/wm-vla-rl/_ext/cosmos_lin_davis/r50/linstate_s2d_step2000.safetensors",
+    "n": 16,
+    "vs_gt": {
+      "psnr": 8.2775,
+      "ssim": 0.1521,
+      "lpips": 0.8325
+    },
+    "vs_teacher": {
+      "psnr": 15.6788,
+      "ssim": 0.6383,
+      "lpips": 0.305
+    }
+  },
+  "rows": [
+    {
+      "seq": "shooting",
+      "vs_gt": {
+        "psnr": 8.18,
+        "ssim": 0.1581,
+        "lpips": 0.807
+      },
+      "vs_teacher": {
+        "psnr": 16.96,
+        "ssim": 0.6932,
+        "lpips": 0.2772
+      }
+    },
+    {
+      "seq": "skate-park",
+      "vs_gt": {
+        "psnr": 7.32,
+        "ssim": 0.1957,
+        "lpips": 0.8491
+      },
+      "vs_teacher": {
+        "psnr": 16.35,
+        "ssim": 0.6704,
+        "lpips": 0.2881
+      }
+    },
+    {
+      "seq": "snowboard",
+      "vs_gt": {
+        "psnr": 7.6,
+        "ssim": 0.1221,
+        "lpips": 0.8026
+      },
+      "vs_teacher": {
+        "psnr": 15.94,
+        "ssim": 0.6488,
+        "lpips": 0.2831
+      }
+    },
+    {
+      "seq": "soapbox",
+      "vs_gt": {
+        "psnr": 8.08,
+        "ssim": 0.1563,
+        "lpips": 0.8431
+      },
+      "vs_teacher": {
+        "psnr": 15.32,
+        "ssim": 0.6311,
+        "lpips": 0.2992
+      }
+    },
+    {
+      "seq": "soccerball",
+      "vs_gt": {
+        "psnr": 8.43,
+        "ssim": 0.0819,
+        "lpips": 0.8277
+      },
+      "vs_teacher": {
+        "psnr": 15.48,
+        "ssim": 0.635,
+        "lpips": 0.3051
+      }
+    },
+    {
+      "seq": "stroller",
+      "vs_gt": {
+        "psnr": 9.25,
+        "ssim": 0.1642,
+        "lpips": 0.8047
+      },
+      "vs_teacher": {
+        "psnr": 16.18,
+        "ssim": 0.6425,
+        "lpips": 0.2939
+      }
+    },
+    {
+      "seq": "stunt",
+      "vs_gt": {
+        "psnr": 7.41,
+        "ssim": 0.1768,
+        "lpips": 0.8087
+      },
+      "vs_teacher": {
+        "psnr": 17.14,
+        "ssim": 0.6905,
+        "lpips": 0.2588
+      }
+    },
+    {
+      "seq": "surf",
+      "vs_gt": {
+        "psnr": 7.7,
+        "ssim": 0.1835,
+        "lpips": 0.8231
+      },
+      "vs_teacher": {
+        "psnr": 14.53,
+        "ssim": 0.5753,
+        "lpips": 0.3382
+      }
+    },
+    {
+      "seq": "swing",
+      "vs_gt": {
+        "psnr": 9.04,
+        "ssim": 0.1557,
+        "lpips": 0.8498
+      },
+      "vs_teacher": {
+        "psnr": 15.19,
+        "ssim": 0.6374,
+        "lpips": 0.3229
+      }
+    },
+    {
+      "seq": "tennis",
+      "vs_gt": {
+        "psnr": 8.37,
+        "ssim": 0.1595,
+        "lpips": 0.8531
+      },
+      "vs_teacher": {
+        "psnr": 16.1,
+        "ssim": 0.6747,
+        "lpips": 0.2776
+      }
+    },
+    {
+      "seq": "tractor-sand",
+      "vs_gt": {
+        "psnr": 8.33,
+        "ssim": 0.1853,
+        "lpips": 0.8696
+      },
+      "vs_teacher": {
+        "psnr": 14.57,
+        "ssim": 0.6004,
+        "lpips": 0.3331
+      }
+    },
+    {
+      "seq": "train",
+      "vs_gt": {
+        "psnr": 9.28,
+        "ssim": 0.1335,
+        "lpips": 0.833
+      },
+      "vs_teacher": {
+        "psnr": 15.85,
+        "ssim": 0.6489,
+        "lpips": 0.2985
+      }
+    },
+    {
+      "seq": "tuk-tuk",
+      "vs_gt": {
+        "psnr": 8.78,
+        "ssim": 0.1428,
+        "lpips": 0.8533
+      },
+      "vs_teacher": {
+        "psnr": 14.79,
+        "ssim": 0.5728,
+        "lpips": 0.361
+      }
+    },
+    {
+      "seq": "upside-down",
+      "vs_gt": {
+        "psnr": 7.82,
+        "ssim": 0.1235,
+        "lpips": 0.8499
+      },
+      "vs_teacher": {
+        "psnr": 14.83,
+        "ssim": 0.611,
+        "lpips": 0.3349
+      }
+    },
+    {
+      "seq": "varanus-cage",
+      "vs_gt": {
+        "psnr": 8.62,
+        "ssim": 0.1386,
+        "lpips": 0.8145
+      },
+      "vs_teacher": {
+        "psnr": 15.43,
+        "ssim": 0.6176,
+        "lpips": 0.3232
+      }
+    },
+    {
+      "seq": "walking",
+      "vs_gt": {
+        "psnr": 8.23,
+        "ssim": 0.1564,
+        "lpips": 0.8305
+      },
+      "vs_teacher": {
+        "psnr": 16.2,
+        "ssim": 0.6627,
+        "lpips": 0.2859
+      }
+    }
+  ]
+}
