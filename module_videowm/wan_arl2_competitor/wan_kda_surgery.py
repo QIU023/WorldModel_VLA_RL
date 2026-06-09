@@ -108,6 +108,14 @@ def kda_trainable_names():
     return ("b_proj", "f_a", "f_b", "g_a", "g_b", "A_log", "dt_bias", "kda_o_norm")
 
 
+def is_kda_param(name):
+    """True iff `name` is one of the added KDA gate/beta params. EXACT dotted-component match —
+    NOT substring: "f_a" is a substring of "self_attn" (se|lf_a|ttn), so `"f_a" in name` would
+    wrongly flag every q/k/v/o weight. Split on '.' and require an exact leaf-module match."""
+    parts = set(name.split("."))
+    return any(kk in parts for kk in kda_trainable_names())
+
+
 def factorize_wan(model, ratio=0.75):
     """Replace self_attn with FactorizedKDASelfAttention on `ratio` of the 30 WanAttentionBlocks
     (evenly-spaced softmax anchors kept). Returns the list of linearized block indices."""
