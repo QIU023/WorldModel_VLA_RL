@@ -49,54 +49,59 @@ def patch_wan_flash_sdpa():
 patch_wan_flash_sdpa()   # apply on import so the teacher WanSelfAttention runs
 
 
+def _add_kda_params(m, dim, nh, hd):
+    """Add KDA inter-frame gate/beta params (the new ~2% trainable) to a self-attn module m."""
+    m.b_proj = nn.Linear(dim, nh, bias=False)              # per-head delta beta
+    m.f_a = nn.Linear(dim, hd, bias=False); m.f_b = nn.Linear(hd, dim, bias=False)   # forget gate
+    m.g_a = nn.Linear(dim, hd, bias=False); m.g_b = nn.Linear(hd, dim, bias=False)   # output gate
+    m.A_log = nn.Parameter(torch.log(torch.empty(nh).uniform_(1, 16)))
+    dt = torch.exp(torch.rand(dim) * (math.log(0.1) - math.log(1e-3)) + math.log(1e-3)).clamp(min=1e-4)
+    m.dt_bias = nn.Parameter(dt + torch.log(-torch.expm1(-dt)))   # mild-decay init ~ keeps memory ~ softmax
+    nn.init.zeros_(m.f_b.weight)
+    m.kda_o_norm = nn.RMSNorm(hd)
+
+
 class FactorizedKDASelfAttention(WanSelfAttention):
-    """Inherits q/k/v/o/norm_q/norm_k from WanSelfAttention (teacher weights). Adds KDA gate/beta projs."""
+    """BIDIRECTIONAL teacher (Cosmos/Wan bidir). Inherits q/k/v/o/norm from base; adds KDA params."""
     def __init__(self, base: WanSelfAttention):
-        # re-use the base module's config + (importantly) its pretrained weights
         super().__init__(base.dim, base.num_heads, base.window_size, base.qk_norm, base.eps)
-        self.load_state_dict(base.state_dict())            # inherit teacher q/k/v/o/norm weights
-        dim, nh, hd = self.dim, self.num_heads, self.head_dim
-        # --- KDA (inter-frame) extra params: gate (low-rank forget + output) + beta ---
-        self.b_proj = nn.Linear(dim, nh, bias=False)       # per-head delta beta
-        self.f_a = nn.Linear(dim, hd, bias=False); self.f_b = nn.Linear(hd, dim, bias=False)   # forget gate
-        self.g_a = nn.Linear(dim, hd, bias=False); self.g_b = nn.Linear(hd, dim, bias=False)   # output gate
-        self.A_log = nn.Parameter(torch.log(torch.empty(nh).uniform_(1, 16)))
-        dt = torch.exp(torch.rand(dim) * (math.log(0.1) - math.log(1e-3)) + math.log(1e-3)).clamp(min=1e-4)
-        self.dt_bias = nn.Parameter(dt + torch.log(-torch.expm1(-dt)))   # mild-decay init ~ keeps memory
-        nn.init.zeros_(self.f_b.weight)
-        self.kda_o_norm = nn.RMSNorm(hd)
+        self.load_state_dict(base.state_dict())
+        _add_kda_params(self, self.dim, self.num_heads, self.head_dim)
 
     def forward(self, x, seq_lens, grid_sizes, freqs):
-        b, s, n, d = *x.shape[:2], self.num_heads, self.head_dim
-        Fr, H, W = grid_sizes[0].tolist()
-        q = self.norm_q(self.q(x)).view(b, s, n, d)
-        k = self.norm_k(self.k(x)).view(b, s, n, d)
-        v = self.v(x).view(b, s, n, d)
+        return self.o(_factorized_attn(self, x, grid_sizes, freqs).flatten(2))
 
-        # ---- intra-frame softmax (spatial) : 3D-RoPE q,k; F-phase cancels within a frame ----
-        qr = rope_apply(q, grid_sizes, freqs); kr = rope_apply(k, grid_sizes, freqs)
-        qs = rearrange(qr, "b (f hw) n d -> (b f) n hw d", f=Fr)      # [b*F, n, HW, d]
-        ks = rearrange(kr, "b (f hw) n d -> (b f) n hw d", f=Fr)
-        vs = rearrange(v,  "b (f hw) n d -> (b f) n hw d", f=Fr)
-        o_intra = F.scaled_dot_product_attention(qs, ks, vs)          # softmax over HW
-        o_intra = rearrange(o_intra, "(b f) n hw d -> b (f hw) n d", b=b)
 
-        # ---- inter-frame KDA (temporal) : causal gated-delta over F at each spatial position ----
-        qf = rearrange(q, "b (f hw) n d -> (b hw) f n d", f=Fr).to(torch.bfloat16)   # [b*HW, F, n, d]
-        kf = rearrange(k, "b (f hw) n d -> (b hw) f n d", f=Fr).to(torch.bfloat16)
-        vf = rearrange(v, "b (f hw) n d -> (b hw) f n d", f=Fr).to(torch.bfloat16)
-        xf = rearrange(x, "b (f hw) c -> (b hw) f c", f=Fr)
-        g_raw = rearrange(self.f_b(self.f_a(xf)), "p f (n d) -> p f n d", n=n).float()
-        g = fused_kda_gate(g_raw, self.A_log.float(), dt_bias=self.dt_bias.float())
-        beta = self.b_proj(xf).float().sigmoid()
-        o_t, _ = chunk_kda(q=qf, k=kf, v=vf, g=g, beta=beta, initial_state=None,
-                           output_final_state=False, use_qk_l2norm_in_kernel=True, cu_seqlens=None)
-        g_out = rearrange(self.g_b(self.g_a(xf)), "p f (n d) -> p f n d", n=n).float()
-        o_t = self.kda_o_norm(o_t.float()) * torch.sigmoid(g_out)
-        o_inter = rearrange(o_t.to(x.dtype), "(b hw) f n d -> b (f hw) n d", b=b)
-
-        out = (o_intra + o_inter).flatten(2)
-        return self.o(out)
+def _factorized_attn(attn, x, grid_sizes, freqs):
+    """Shared compute for both bidir + causal variants: intra-frame softmax (bidir over H*W) + inter-frame
+    causal KDA (over F). KDA is inherently causal, so this is the SAME for the AR teacher. Returns [B,L,n,d]
+    (pre-o-proj)."""
+    b, s, n, d = *x.shape[:2], attn.num_heads, attn.head_dim
+    Fr, H, W = grid_sizes[0].tolist()
+    q = attn.norm_q(attn.q(x)).view(b, s, n, d)
+    k = attn.norm_k(attn.k(x)).view(b, s, n, d)
+    v = attn.v(x).view(b, s, n, d)
+    # intra-frame softmax (spatial): 3D-RoPE q,k; the F-phase cancels within a frame -> = spatial RoPE
+    qr = rope_apply(q, grid_sizes, freqs); kr = rope_apply(k, grid_sizes, freqs)
+    qs = rearrange(qr, "b (f hw) n d -> (b f) n hw d", f=Fr)
+    ks = rearrange(kr, "b (f hw) n d -> (b f) n hw d", f=Fr)
+    vs = rearrange(v,  "b (f hw) n d -> (b f) n hw d", f=Fr)
+    o_intra = F.scaled_dot_product_attention(qs, ks, vs)
+    o_intra = rearrange(o_intra, "(b f) n hw d -> b (f hw) n d", b=b)
+    # inter-frame causal KDA (temporal): gated-delta over F at each spatial position
+    qf = rearrange(q, "b (f hw) n d -> (b hw) f n d", f=Fr).to(torch.bfloat16)
+    kf = rearrange(k, "b (f hw) n d -> (b hw) f n d", f=Fr).to(torch.bfloat16)
+    vf = rearrange(v, "b (f hw) n d -> (b hw) f n d", f=Fr).to(torch.bfloat16)
+    xf = rearrange(x, "b (f hw) c -> (b hw) f c", f=Fr)
+    g_raw = rearrange(attn.f_b(attn.f_a(xf)), "p f (n d) -> p f n d", n=n).float()
+    g = fused_kda_gate(g_raw, attn.A_log.float(), dt_bias=attn.dt_bias.float())
+    beta = attn.b_proj(xf).float().sigmoid()
+    o_t, _ = chunk_kda(q=qf, k=kf, v=vf, g=g, beta=beta, initial_state=None,
+                       output_final_state=False, use_qk_l2norm_in_kernel=True, cu_seqlens=None)
+    g_out = rearrange(attn.g_b(attn.g_a(xf)), "p f (n d) -> p f n d", n=n).float()
+    o_t = attn.kda_o_norm(o_t.float()) * torch.sigmoid(g_out)
+    o_inter = rearrange(o_t.to(x.dtype), "(b hw) f n d -> b (f hw) n d", b=b)
+    return o_intra + o_inter
 
 
 def kda_trainable_names():
@@ -115,6 +120,40 @@ def factorize_wan(model, ratio=0.75):
     for i in linear_idx:
         blocks[i].self_attn = FactorizedKDASelfAttention(blocks[i].self_attn).to(dev, dt)
     print(f"[factorize] {len(linear_idx)}/{L} blocks -> intra-softmax+inter-KDA; softmax anchors @ {sorted(anchors)}")
+    return linear_idx
+
+
+# ---------------- CAUSAL variant (the real ARL2 competitor: Causal Forcing / CausalWanModel) ----------------
+from wan.modules.causal_model import CausalWanSelfAttention
+
+
+class CausalFactorizedKDASelfAttention(CausalWanSelfAttention):
+    """CAUSAL teacher (Causal Forcing AR). intra-frame softmax (bidir over H*W) + inter-frame CAUSAL KDA over F.
+    KDA is inherently causal -> matches frame-causality. Training path (kv_cache=None) uses the shared compute;
+    streaming kv_cache (frame-by-frame gen) carries the KDA recurrent state per spatial position (TODO for eval)."""
+    def __init__(self, base: CausalWanSelfAttention):
+        super().__init__(base.dim, base.num_heads, base.local_attn_size, base.sink_size, base.qk_norm, base.eps)
+        self.load_state_dict(base.state_dict())
+        _add_kda_params(self, self.dim, self.num_heads, self.head_dim)
+
+    def forward(self, x, seq_lens, grid_sizes, freqs, block_mask=None, kv_cache=None,
+                current_start=0, cache_start=None):
+        # block_mask is the teacher's frame-causal mask — not needed: intra is within-frame, inter-KDA is causal.
+        # kv_cache (streaming gen) -> recurrent KDA state TODO; training (kv_cache=None) is the immediate path.
+        return self.o(_factorized_attn(self, x, grid_sizes, freqs).flatten(2))
+
+
+def factorize_causal_wan(model, ratio=0.75):
+    """Replace self_attn with CausalFactorizedKDASelfAttention on `ratio` of the CausalWanModel blocks."""
+    blocks = model.blocks
+    L = len(blocks)
+    n_keep = max(1, round(L * (1 - ratio)))
+    anchors = set(int(round(i * (L - 1) / (n_keep - 1))) if n_keep > 1 else L // 2 for i in range(n_keep))
+    linear_idx = [i for i in range(L) if i not in anchors]
+    dev = next(model.parameters()).device; dt = next(model.parameters()).dtype
+    for i in linear_idx:
+        blocks[i].self_attn = CausalFactorizedKDASelfAttention(blocks[i].self_attn).to(dev, dt)
+    print(f"[factorize-causal] {len(linear_idx)}/{L} blocks -> intra-softmax+inter-causalKDA; anchors @ {sorted(anchors)}")
     return linear_idx
 
 
