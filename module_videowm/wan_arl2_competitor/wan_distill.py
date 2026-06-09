@@ -123,6 +123,20 @@ def make_noisy(batch, wrapper):
     return noisy, cond, timestep, v
 
 
+def set_cosine_lr(opt, step, total, peak, warmup=200):
+    """Linear warmup then cosine decay to 0. A CONSTANT lr made attn_mse plateau at a loose floor after ~50
+    steps (jumps to a noisy minimum, can't anneal in) — annealing is what makes the long schedule pay off."""
+    import math
+    if step < warmup:
+        lr = peak * (step + 1) / warmup
+    else:
+        prog = (step - warmup) / max(1, total - warmup)
+        lr = 0.5 * peak * (1 + math.cos(math.pi * min(1.0, prog)))
+    for g in opt.param_groups:
+        g["lr"] = lr
+    return lr
+
+
 # ----------------------------------------------------------------------------- Stage 1: per-layer attn transfer
 def stage1_attn_transfer(student, teacher, lin_idx, data_iter, steps=6000, lr=1e-3,
                          accum=4, log_every=20, save_dir=None, rank=0, world_size=1):
@@ -146,8 +160,9 @@ def stage1_attn_transfer(student, teacher, lin_idx, data_iter, steps=6000, lr=1e
     handles = [get_self_attn(teacher.model.blocks[i]).register_forward_hook(mk_hook(i), with_kwargs=True)
                for i in lin_idx]
 
-    student.model.train(); t0 = time.time(); oom = 0
+    student.model.train(); t0 = time.time(); oom = 0; tgt_rms = None
     for step in range(steps):
+        cur_lr = set_cosine_lr(opt, step, steps, lr)
         opt.zero_grad(); acc = 0.0; bad = False
         for _ in range(accum):
             batch = next(data_iter)
@@ -161,6 +176,9 @@ def stage1_attn_transfer(student, teacher, lin_idx, data_iter, steps=6000, lr=1e
                     args, kwargs, tgt = cache[i]
                     out = get_self_attn(student.model.blocks[i])(*args, **kwargs)
                     loss = loss + F.mse_loss(out.float(), tgt.float())
+                    if tgt_rms is None and rank == 0:        # one-time: scale of the target (to read MSE)
+                        tgt_rms = tgt.float().pow(2).mean().sqrt().item()
+                        print(f"[s1] target self_attn-out RMS ~ {tgt_rms:.4f} (interpret attn_mse vs RMS^2={tgt_rms**2:.4f})", flush=True)
                 loss = loss / len(lin_idx) / accum
                 loss.backward(); acc += loss.item() * accum
             except torch.cuda.OutOfMemoryError:
@@ -171,7 +189,7 @@ def stage1_attn_transfer(student, teacher, lin_idx, data_iter, steps=6000, lr=1e
         allreduce_grads(params, world_size)
         torch.nn.utils.clip_grad_norm_(params, 1.0); opt.step()
         if rank == 0 and step % log_every == 0:
-            print(f"[s1] step {step}/{steps}  attn_mse {acc/accum:.5f}  {time.time()-t0:.0f}s", flush=True)
+            print(f"[s1] step {step}/{steps}  attn_mse {acc/accum:.5f}  lr {cur_lr:.2e}  {time.time()-t0:.0f}s", flush=True)
         if rank == 0 and save_dir and step > 0 and step % 1000 == 0:
             _save(student, save_dir, step, "s1")
     for h in handles: h.remove()
@@ -191,6 +209,7 @@ def stage2_output_distill(student, teacher, data_iter, steps=12000, lr=2e-4,
               f"accum={accum}, GBS={accum*world_size}", flush=True)
     student.model.train(); t0 = time.time(); ema = None; oom = 0
     for step in range(steps):
+        cur_lr = set_cosine_lr(opt, step, steps, lr)
         opt.zero_grad(); acc = 0.0; bad = False
         for _ in range(accum):
             batch = next(data_iter)
@@ -210,7 +229,7 @@ def stage2_output_distill(student, teacher, data_iter, steps=12000, lr=2e-4,
         torch.nn.utils.clip_grad_norm_(params, 1.0); opt.step()
         ema = acc/accum if ema is None else 0.98 * ema + 0.02 * (acc/accum)
         if rank == 0 and step % log_every == 0:
-            print(f"[s2] step {step}/{steps}  distill_mse {acc/accum:.4f} (ema {ema:.4f})  {time.time()-t0:.0f}s", flush=True)
+            print(f"[s2] step {step}/{steps}  distill_mse {acc/accum:.4f} (ema {ema:.4f})  lr {cur_lr:.2e}  {time.time()-t0:.0f}s", flush=True)
         if rank == 0 and save_dir and step > 0 and step % 1000 == 0:
             _save(student, save_dir, step, "s2")
     if rank == 0 and save_dir: _save(student, save_dir, steps, "s2")
