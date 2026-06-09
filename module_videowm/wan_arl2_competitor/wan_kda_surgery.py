@@ -165,6 +165,94 @@ def factorize_causal_wan(model, ratio=0.75):
     return linear_idx
 
 
+# ---------------- AttnRes: cross-LAYER (depth-axis) residual attention (our differentiation vs ARL2) ----------------
+# Kimi 2603.15031 Block-AttnRes. Orthogonal to KDA (time axis): KDA mixes over FRAMES, AttnRes mixes over
+# completed LAYER outputs. Universal length-invariant query (one learned vector per boundary, applied per-token),
+# per-token adaptive (softmax weights depend on K(token)), zero-init -> starts as a no-op (mean), stable insertion.
+
+def block_attn_res(blocks, partial, proj, norm):
+    """Softmax-aggregate a list of completed block outputs + the current partial, with a learned pseudo-query.
+    blocks/partial each [B, T, D]; zero-init proj => uniform at start (no-op)."""
+    V = torch.stack(blocks + [partial], dim=0)            # [N+1, B, T, D]
+    K = norm(V)
+    q = proj.weight.squeeze(0)                            # [D]
+    logits = torch.einsum("d,nbtd->nbt", q, K)
+    w = torch.softmax(logits, dim=0)
+    return torch.einsum("nbt,nbtd->btd", w, V).to(partial.dtype)
+
+
+class _AttnResCoord(nn.Module):
+    """Holds the pseudo-queries (one per boundary) + a zero-init residual GATE per boundary + shared RMSNorm.
+    The gate makes AttnRes a TRUE identity at init: hs <- hs + gate*(agg - hs), gate=0 => hs (no-op). This keeps
+    Stage-1 per-layer attn-transfer clean (student sees the same per-layer structure as the teacher) and lets the
+    cross-layer mixing be learned in Stage-2. `committed` is a per-forward runtime list."""
+    def __init__(self, dim, n_commit):
+        super().__init__()
+        n = max(1, n_commit)
+        self.proj = nn.ModuleList([nn.Linear(dim, 1, bias=False) for _ in range(n)])
+        for p in self.proj:
+            nn.init.zeros_(p.weight)
+        self.gate = nn.Parameter(torch.zeros(n))          # zero-init residual gate -> identity at init
+        self.norm = nn.RMSNorm(dim)
+        self.committed = []
+
+    def reset(self):
+        self.committed = []
+
+
+class _WanBlockAttnRes(nn.Module):
+    """Wrap a WanAttentionBlock: at group boundaries commit the output and replace the next group's input with the
+    cross-layer AttnRes aggregation of committed outputs. Signature-transparent (passes *args/**kwargs through)."""
+    def __init__(self, inner, coord, idx, lpb, n_layers):
+        super().__init__()
+        self.inner = inner
+        object.__setattr__(self, 'coord', coord)          # ref only — don't register coord under every layer
+        self.idx = idx; self.lpb = lpb
+        self.is_boundary = (idx + 1) % lpb == 0
+        self.is_last = idx == n_layers - 1
+
+    def forward(self, x, *args, **kwargs):
+        if self.idx == 0:
+            self.coord.reset()
+        out = self.inner(x, *args, **kwargs)
+        hs = out[0] if isinstance(out, tuple) else out
+        if self.is_boundary:
+            self.coord.committed.append(hs)
+            if not self.is_last:
+                g = len(self.coord.committed) - 1
+                agg = block_attn_res(self.coord.committed[:-1], self.coord.committed[-1],
+                                     self.coord.proj[g], self.coord.norm)
+                hs = hs + self.coord.gate[g] * (agg - hs)      # zero-init gate -> identity at init
+            return (hs,) + out[1:] if isinstance(out, tuple) else hs
+        return out
+
+
+def attnres_ify_wan(model, groups=4):
+    """Split the blocks into `groups`; at each boundary aggregate completed-group outputs (cross-layer AttnRes)."""
+    blocks = model.blocks
+    L = len(blocks)
+    lpb = max(1, L // groups)
+    n_agg = sum(1 for i in range(L) if (i + 1) % lpb == 0 and i != L - 1)
+    dev = next(model.parameters()).device; dt = next(model.parameters()).dtype
+    coord = _AttnResCoord(model.dim, n_agg).to(dev, dt)
+    model.attnres_coord = coord
+    model.blocks = nn.ModuleList([_WanBlockAttnRes(b, coord, i, lpb, L) for i, b in enumerate(blocks)])
+    print(f"[attnres] {L} blocks, lpb={lpb}, {n_agg} cross-layer AttnRes aggregation points")
+    return model
+
+
+def surgery_trainable_params(model):
+    """The params to optimize during distillation: KDA gate/beta (1.25%) + AttnRes coord (~negligible).
+    Everything else (q/k/v/o, ffn, norms, embeddings = the teacher) stays frozen."""
+    out = []
+    for n, p in model.named_parameters():
+        if is_kda_param(n) or "attnres_coord" in n.split("."):
+            p.requires_grad_(True); out.append((n, p))
+        else:
+            p.requires_grad_(False)
+    return out
+
+
 if __name__ == "__main__":
     # smoke: build a tiny Wan-like self-attn, factorize, forward
     torch.manual_seed(0)
