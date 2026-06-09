@@ -5,7 +5,7 @@
 set -u
 EXT=/home/wm-vla-rl/_ext; CF=$EXT/Causal-Forcing; PY=/home/venv/cosmos_predict2/bin/python
 DATA=/home/wan_distill_data; OUT=$EXT/wan_lin_out
-RATIO=0.75; NGRP=4; S1_STEPS=6000; S2_STEPS=12000; BATCH=1; ACCUM=4; S1_LR=1e-4; S2_LR=1e-4; N_DATA=512
+RATIO=0.75; NGRP=4; S1_STEPS=6000; S2_STEPS=12000; BATCH=1; ACCUM=4; S1_LR=1e-4; S2_LR=1e-4; N_DATA=6000
 WD=0.1; CLIP=4   # sweep-selected: lr 1e-4 (1e-3 plateaued, 1e-5 too small); WorldVLA-KDA wd/clip; cosine default
 mkdir -p "$OUT"; cd "$CF"; ts() { date +%H:%M:%S; }
 TR="$PY -m torch.distributed.run --nproc_per_node=2 --master_port=29561 $EXT/wan_distill.py"
