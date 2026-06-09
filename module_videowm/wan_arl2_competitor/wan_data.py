@@ -37,6 +37,7 @@ def main():
     ap.add_argument("--n", type=int, default=256, help="number of clips to generate")
     ap.add_argument("--frames", type=int, default=21, help="latent frames (21 -> 81 px frames)")
     ap.add_argument("--seeds", type=int, default=3, help="seeds per prompt (cycles prompts to reach --n)")
+    ap.add_argument("--start", type=int, default=None, help="start clip index (for sharding two generators)")
     ap.add_argument("--smoke", action="store_true")
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
@@ -48,8 +49,8 @@ def main():
 
     done = len(glob.glob(os.path.join(args.out, "clip_*.pt")))
     print(f"[data] {done} clips already present, resuming", flush=True)
-    made = done
-    j = done
+    j = args.start if args.start is not None else done    # --start lets a 2nd generator shard the upper range
+    made = j
     while made < (1 if args.smoke else args.n):
         prompt = prompts[(j // 1) % len(prompts)]
         seed = j // len(prompts)
