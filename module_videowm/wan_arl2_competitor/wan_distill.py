@@ -28,7 +28,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import wan_kda_surgery as S   # applies the SDPA-flash patch on import
-from wan_kda_surgery import factorize_causal_wan, attnres_ify_wan, surgery_trainable_params, is_kda_param
+from wan_kda_surgery import (factorize_causal_wan, attnres_ify_wan, surgery_trainable_params,
+                             is_kda_param, is_lora_param, add_lora_wan)
 
 CF_CKPT = "/home/causal_forcing_ckpt/framewise/causal_forcing.pt"
 WAN_DIR = "Wan2.1-T2V-1.3B"          # symlinked under Causal-Forcing/wan_models/
@@ -64,14 +65,17 @@ def _load_causal_forcing(model):
     return model
 
 
-def load_wrapper(device="cuda", surgery=False, ratio=0.75, groups=4):
-    """A WanDiffusionWrapper around the AR Causal Forcing teacher. surgery=True -> linearize (the student)."""
+def load_wrapper(device="cuda", surgery=False, ratio=0.75, groups=4, lora=False, lora_r=8):
+    """A WanDiffusionWrapper around the AR Causal Forcing teacher. surgery=True -> linearize (the student).
+    lora=True (Stage-2 only) adds ARL2-standard LoRA on Q/K/V/O+FFN of the linearized blocks."""
     from utils.wan_wrapper import WanDiffusionWrapper
     w = WanDiffusionWrapper(model_name=WAN_DIR, is_causal=True)
     _load_causal_forcing(w.model)
     if surgery:
-        factorize_causal_wan(w.model, ratio=ratio)
+        lin = factorize_causal_wan(w.model, ratio=ratio)
         attnres_ify_wan(w.model, groups=groups)
+        if lora:
+            add_lora_wan(w.model, lin, r=lora_r)          # ARL2 S2: LoRA on Q/K/V/O + FFN
     w = w.to(device).to(torch.bfloat16)
     w.model.eval()
     # NOTE: gradient checkpointing deliberately OFF (user: "不许随便开ac"; also AttnRes' per-forward `committed`
@@ -240,7 +244,7 @@ def stage2_output_distill(student, teacher, data_iter, steps=12000, lr=1e-4,
 
 # ----------------------------------------------------------------------------- ckpt I/O (trainable params only)
 def _is_trainable_key(k):
-    return is_kda_param(k) or ("attnres_coord" in k.split("."))
+    return is_kda_param(k) or is_lora_param(k) or ("attnres_coord" in k.split("."))
 
 
 def _save(student, save_dir, step, tag):
@@ -272,6 +276,7 @@ def main():
     ap.add_argument("--batch", type=int, default=1)
     ap.add_argument("--accum", type=int, default=4)
     ap.add_argument("--lr", type=float, default=None)
+    ap.add_argument("--lora_r", type=int, default=8, help="S2 LoRA rank on Q/K/V/O+FFN")
     ap.add_argument("--sched", choices=["cosine", "const"], default="cosine")
     ap.add_argument("--wd", type=float, default=0.0)
     ap.add_argument("--clip", type=float, default=1.0)
@@ -285,7 +290,8 @@ def main():
 
     rank, world_size, local_rank = setup_dist()
     dev = f"cuda:{local_rank}"
-    student = load_wrapper(dev, surgery=True, ratio=args.ratio, groups=args.groups)
+    student = load_wrapper(dev, surgery=True, ratio=args.ratio, groups=args.groups,
+                           lora=(args.stage == 2), lora_r=args.lora_r)   # LoRA only in S2 (ARL2 standard)
     teacher = load_wrapper(dev, surgery=False)
     lin_idx = linear_block_idx(student)
     if args.resume:

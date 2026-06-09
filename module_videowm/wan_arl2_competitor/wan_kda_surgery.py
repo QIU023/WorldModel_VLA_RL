@@ -242,12 +242,63 @@ def attnres_ify_wan(model, groups=4):
     return model
 
 
+def get_self_attn(block):
+    """The self_attn of a block, unwrapping the _WanBlockAttnRes AttnRes wrapper if present."""
+    return block.inner.self_attn if hasattr(block, "inner") else block.self_attn
+
+
+# ---------------- LoRA: module-level, library-maintained, modular insertion (ARL2 S2 standard: Q/K/V/O + FFN) ------
+class LoRALinear(nn.Module):
+    """Wrap an nn.Linear with a zero-init low-rank adapter: y = base(x) + (B@A)(x)*alpha/r. base frozen; B is
+    zero-init => identity at insertion (no perturbation until trained). The adapter is the only trainable part.
+    Trained in STAGE-2 (with KDA + AttnRes) to recover the linearization gap, exactly as LoLCATs/ARL2."""
+    def __init__(self, base, r=8, alpha=16):
+        super().__init__()
+        self.base = base
+        for p in self.base.parameters():
+            p.requires_grad_(False)
+        self.lora_A = nn.Linear(base.in_features, r, bias=False)
+        self.lora_B = nn.Linear(r, base.out_features, bias=False)
+        nn.init.kaiming_uniform_(self.lora_A.weight, a=math.sqrt(5))
+        nn.init.zeros_(self.lora_B.weight)
+        self.scale = alpha / r
+        self.lora_A.to(base.weight.device, base.weight.dtype)
+        self.lora_B.to(base.weight.device, base.weight.dtype)
+
+    def forward(self, x):
+        return self.base(x) + self.lora_B(self.lora_A(x)) * self.scale
+
+
+def is_lora_param(name):
+    parts = set(name.split("."))
+    return ("lora_A" in parts) or ("lora_B" in parts)
+
+
+def add_lora_wan(model, linear_idx, r=8, alpha=16, include_ffn=True):
+    """ARL2 Stage-2 standard: LoRA on the Q/K/V/O path (+FFN) of each LINEARIZED block. Modular & library-maintained:
+    call after factorize+attnres, before loading the Stage-1 KDA ckpt. zero-init B => no change until trained."""
+    n = 0
+    for i in linear_idx:
+        attn = get_self_attn(model.blocks[i])
+        attn.q = LoRALinear(attn.q, r, alpha); attn.k = LoRALinear(attn.k, r, alpha)
+        attn.v = LoRALinear(attn.v, r, alpha); attn.o = LoRALinear(attn.o, r, alpha)
+        if include_ffn:
+            blk = model.blocks[i]
+            blk = blk.inner if hasattr(blk, "inner") else blk      # unwrap _WanBlockAttnRes
+            blk.ffn[0] = LoRALinear(blk.ffn[0], r, alpha)
+            blk.ffn[2] = LoRALinear(blk.ffn[2], r, alpha)
+        n += 1
+    tot = sum(p.numel() for nm, p in model.named_parameters() if is_lora_param(nm))
+    print(f"[lora] r={r} on Q/K/V/O{'+FFN' if include_ffn else ''} of {n} linearized blocks -> {tot/1e6:.2f}M LoRA params")
+    return model
+
+
 def surgery_trainable_params(model):
-    """The params to optimize during distillation: KDA gate/beta (1.25%) + AttnRes coord (~negligible).
-    Everything else (q/k/v/o, ffn, norms, embeddings = the teacher) stays frozen."""
+    """STAGE-2 trainable set: KDA gate/beta + LoRA(Q/K/V/O+FFN) + AttnRes coord. Everything else (the teacher's
+    frozen q/k/v/o/ffn/norms/embeddings) stays frozen. (Stage-1 trains KDA only — see wan_distill.)"""
     out = []
     for n, p in model.named_parameters():
-        if is_kda_param(n) or "attnres_coord" in n.split("."):
+        if is_kda_param(n) or is_lora_param(n) or "attnres_coord" in n.split("."):
             p.requires_grad_(True); out.append((n, p))
         else:
             p.requires_grad_(False)
