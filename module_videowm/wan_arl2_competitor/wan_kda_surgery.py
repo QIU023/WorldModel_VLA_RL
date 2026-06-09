@@ -229,6 +229,7 @@ class _WanBlockAttnRes(nn.Module):
 
 def attnres_ify_wan(model, groups=4):
     """Split the blocks into `groups`; at each boundary aggregate completed-group outputs (cross-layer AttnRes)."""
+    assert isinstance(groups, int) and groups >= 1, f"attnres_ify_wan: groups must be >=1, got {groups!r}"
     blocks = model.blocks
     L = len(blocks)
     lpb = max(1, L // groups)
