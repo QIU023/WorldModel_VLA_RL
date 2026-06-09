@@ -66,17 +66,55 @@ def efficiency(ratio=0.75, groups=4):
     return rows
 
 
+def velocity_match(ratio=0.75, groups=4, resume=None, n=32):
+    """逼近教师: on held-out teacher latents, compare the student's predicted velocity to the pristine teacher's
+    on IDENTICAL noised inputs (non-streaming training-path forward — KDA-supported, fair same-mode). Reports
+    relative-MSE and cosine sim, averaged over clips x random timesteps. This is the S2 objective measured on
+    held-out data: 1.0 cosine / 0.0 relMSE = perfect teacher reproduction."""
+    dev = "cuda:0"
+    teacher = WD.load_wrapper(dev, surgery=False)
+    student = WD.load_wrapper(dev, surgery=True, ratio=ratio, groups=groups)
+    if resume:
+        WD.load_linstate(student, resume)
+        tag = os.path.basename(resume)
+    else:
+        tag = "UNDISTILLED (harness check)"
+    import glob
+    files = sorted(glob.glob("/home/wan_distill_data/clip_*.pt"))[-n:]   # held-out tail
+    rel, cos = [], []
+    for f in files:
+        d = torch.load(f, map_location="cpu")
+        batch = {"latent": d["latent"].unsqueeze(0), "prompt_embeds": d["prompt_embeds"].unsqueeze(0)}
+        noisy, cond, timestep, _v = WD.make_noisy(batch, teacher)
+        with torch.no_grad():
+            tv, _ = teacher(noisy, cond, timestep)
+            sv, _ = student(noisy, cond, timestep)
+        tvf, svf = tv.float().flatten(), sv.float().flatten()
+        rel.append(((svf - tvf).pow(2).sum() / tvf.pow(2).sum().clamp_min(1e-8)).item())
+        cos.append(torch.nn.functional.cosine_similarity(svf, tvf, dim=0).item())
+    import statistics as st
+    print(f"[velocity-match] {tag}  n={len(files)}", flush=True)
+    print(f"  rel_MSE(student||teacher) = {st.mean(rel):.4f} +- {st.pstdev(rel):.4f}  (0=perfect)", flush=True)
+    print(f"  cosine(student,teacher)   = {st.mean(cos):.4f} +- {st.pstdev(cos):.4f}  (1=perfect)", flush=True)
+    out = "/home/wm-vla-rl/_ext/wan_eval_velocity.json"
+    json.dump({"tag": tag, "rel_mse": st.mean(rel), "cosine": st.mean(cos), "n": len(files)}, open(out, "w"), indent=2)
+    print(f"=== velocity-match -> {out} ===", flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mode", choices=["efficiency", "quality"], default="efficiency")
+    ap.add_argument("--mode", choices=["efficiency", "velocity", "quality"], default="efficiency")
     ap.add_argument("--ratio", type=float, default=0.75)
     ap.add_argument("--groups", type=int, default=4)
     ap.add_argument("--resume", type=str, default=None)
+    ap.add_argument("--n", type=int, default=32)
     args = ap.parse_args()
     if args.mode == "efficiency":
         efficiency(args.ratio, args.groups)
+    elif args.mode == "velocity":
+        velocity_match(args.ratio, args.groups, args.resume, args.n)
     else:
-        raise SystemExit("quality mode wired after Stage-2 completes")
+        raise SystemExit("quality(VBench-video) mode wired after Stage-2 completes")
 
 
 if __name__ == "__main__":
