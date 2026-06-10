@@ -147,8 +147,49 @@ class CausalFactorizedKDASelfAttention(CausalWanSelfAttention):
     def forward(self, x, seq_lens, grid_sizes, freqs, block_mask=None, kv_cache=None,
                 current_start=0, cache_start=None):
         # block_mask is the teacher's frame-causal mask — not needed: intra is within-frame, inter-KDA is causal.
-        # kv_cache (streaming gen) -> recurrent KDA state TODO; training (kv_cache=None) is the immediate path.
-        return self.o(_factorized_attn(self, x, grid_sizes, freqs).flatten(2))
+        if kv_cache is None:
+            # training / full-sequence: shared compute sees ALL frames -> KDA correct.
+            return self.o(_factorized_attn(self, x, grid_sizes, freqs).flatten(2))
+        # ---- STREAMING generation: carry the KDA recurrent state across frames (the eval-time fix) ----
+        # Without this each frame ran chunk_kda(initial_state=None) over its own 1 frame -> ZERO cross-frame
+        # memory -> incoherent motion -> dynamic_degree collapse. Mirror softmax KV-cache: the per-step call
+        # overwrites the current frame's pending q/k/v/gate; the state ADVANCES (commits) only when current_start
+        # moves to the next frame, using that frame's last (cleanest) pending — same as the cache keeping last-step K/V.
+        b, s, n, d = *x.shape[:2], self.num_heads, self.head_dim
+        Fr, H, W = grid_sizes[0].tolist()
+        frame_seqlen = H * W
+        cur_frame = int(current_start) // max(1, frame_seqlen)
+        if int(current_start) == 0:                                   # new generation -> reset (idempotent over frame-0 steps)
+            self._kda_S = None; self._kda_committed = -1; self._kda_pending = None
+        q = self.norm_q(self.q(x)).view(b, s, n, d)
+        k = self.norm_k(self.k(x)).view(b, s, n, d)
+        v = self.v(x).view(b, s, n, d)
+        # intra-frame softmax (within the current frame's H*W; spatial RoPE) — no cross-frame cache needed
+        qr = rope_apply(q, grid_sizes, freqs); kr = rope_apply(k, grid_sizes, freqs)
+        qs = rearrange(qr, "b (f hw) n d -> (b f) n hw d", f=Fr)
+        ks = rearrange(kr, "b (f hw) n d -> (b f) n hw d", f=Fr)
+        vs = rearrange(v,  "b (f hw) n d -> (b f) n hw d", f=Fr)
+        o_intra = rearrange(F.scaled_dot_product_attention(qs, ks, vs), "(b f) n hw d -> b (f hw) n d", b=b)
+        # inter-frame KDA for the current frame, from the committed recurrent state
+        qf = rearrange(q, "b (f hw) n d -> (b hw) f n d", f=Fr).to(torch.bfloat16)
+        kf = rearrange(k, "b (f hw) n d -> (b hw) f n d", f=Fr).to(torch.bfloat16)
+        vf = rearrange(v, "b (f hw) n d -> (b hw) f n d", f=Fr).to(torch.bfloat16)
+        xf = rearrange(x, "b (f hw) c -> (b hw) f c", f=Fr)
+        g = fused_kda_gate(rearrange(self.f_b(self.f_a(xf)), "p f (n d) -> p f n d", n=n).float(),
+                           self.A_log.float(), dt_bias=self.dt_bias.float())
+        beta = self.b_proj(xf).float().sigmoid()
+        if cur_frame > self._kda_committed + 1 and self._kda_pending is not None:   # frame advanced -> commit prev
+            pq, pk, pv, pg, pb = self._kda_pending
+            _, self._kda_S = chunk_kda(q=pq, k=pk, v=pv, g=pg, beta=pb, initial_state=self._kda_S,
+                                       output_final_state=True, use_qk_l2norm_in_kernel=True, cu_seqlens=None)
+            self._kda_committed += 1
+        o_t, _ = chunk_kda(q=qf, k=kf, v=vf, g=g, beta=beta, initial_state=self._kda_S,
+                           output_final_state=False, use_qk_l2norm_in_kernel=True, cu_seqlens=None)
+        self._kda_pending = (qf, kf, vf, g, beta)                     # last step wins (cleanest) -> committed on next frame
+        g_out = rearrange(self.g_b(self.g_a(xf)), "p f (n d) -> p f n d", n=n).float()
+        o_t = self.kda_o_norm(o_t.float()) * torch.sigmoid(g_out)
+        o_inter = rearrange(o_t.to(x.dtype), "(b hw) f n d -> b (f hw) n d", b=b)
+        return self.o((o_intra + o_inter).flatten(2))
 
 
 def factorize_causal_wan(model, ratio=0.75):
