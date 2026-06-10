@@ -144,18 +144,23 @@ def set_cosine_lr(opt, step, total, peak, warmup=200):
 # ----------------------------------------------------------------------------- Stage 1: per-layer attn transfer
 def stage1_attn_transfer(student, teacher, lin_idx, data_iter, steps=6000, lr=1e-4,
                          accum=4, log_every=20, save_dir=None, rank=0, world_size=1,
-                         sched="cosine", wd=0.0, clip=1.0, resume_opt=None):
+                         sched="cosine", wd=0.0, clip=1.0, resume_opt=None, save_every=1000, start_step=0):
     # train ONLY the KDA params (per-layer attn matching); AttnRes is identity at init -> frozen here
-    params = [p for n, p in student.model.named_parameters() if is_kda_param(n)]
-    for p in student.model.parameters():
+    base = getattr(student.model, "_orig_mod", student.model)          # unwrap torch.compile for param handles
+    params = [p for n, p in base.named_parameters() if is_kda_param(n)]
+    for p in base.parameters():
         p.requires_grad_(False)
     for p in params:
         p.requires_grad_(True)
     opt = torch.optim.AdamW(params, lr=lr, weight_decay=wd, betas=(0.9, 0.95))
-    start_step = load_optstate(opt, resume_opt, params[0].device) if resume_opt else 0
+    start_step = load_optstate(opt, resume_opt, params[0].device) if resume_opt else start_step
     if rank == 0:
         print(f"[s1] {sum(p.numel() for p in params)/1e6:.2f}M KDA params, lr={lr}, steps={steps}, accum={accum}, "
               f"GBS={accum*world_size}, {len(lin_idx)} linear layers", flush=True)
+        if resume_opt:   # NOTE LR: surface the schedule lr the resume will continue at
+            _rlr = set_cosine_lr(opt, start_step, steps, lr) if sched == "cosine" else lr
+            print(f"[s1][resume] schedule continues @ step {start_step}/{steps}: lr={_rlr:.2e} "
+                  f"({'in warmup' if start_step < 200 else 'cosine, NO re-warmup (momentum preserved)'})", flush=True)
 
     # capture each teacher linearized self_attn's (args, kwargs, output)
     cache = {}
@@ -196,7 +201,7 @@ def stage1_attn_transfer(student, teacher, lin_idx, data_iter, steps=6000, lr=1e
         torch.nn.utils.clip_grad_norm_(params, clip); opt.step()
         if rank == 0 and step % log_every == 0:
             print(f"[s1] step {step}/{steps}  attn_mse {acc/accum:.5f}  lr {cur_lr:.2e}  {time.time()-t0:.0f}s", flush=True)
-        if rank == 0 and save_dir and step > 0 and step % 1000 == 0:
+        if rank == 0 and save_dir and step > 0 and step % save_every == 0:
             _save(student, save_dir, step, "s1", opt=opt, total=steps)
     for h in handles: h.remove()
     if rank == 0 and save_dir: _save(student, save_dir, steps, "s1", opt=opt, total=steps)
@@ -206,15 +211,21 @@ def stage1_attn_transfer(student, teacher, lin_idx, data_iter, steps=6000, lr=1e
 # ----------------------------------------------------------------------------- Stage 2: output distillation
 def stage2_output_distill(student, teacher, data_iter, steps=12000, lr=1e-4,
                           accum=4, log_every=20, save_dir=None, rank=0, world_size=1,
-                          sched="cosine", wd=0.0, clip=1.0, resume_opt=None):
-    params = [p for _, p in surgery_trainable_params(student.model)]   # KDA + AttnRes; teacher base frozen
+                          sched="cosine", wd=0.0, clip=1.0, resume_opt=None, save_every=1000, start_step=0):
+    base = getattr(student.model, "_orig_mod", student.model)          # unwrap torch.compile for param handles
+    params = [p for _, p in surgery_trainable_params(base)]            # KDA + AttnRes; teacher base frozen
     for p in teacher.parameters():
         p.requires_grad_(False)
     opt = torch.optim.AdamW(params, lr=lr, weight_decay=wd, betas=(0.9, 0.95))
-    start_step = load_optstate(opt, resume_opt, params[0].device) if resume_opt else 0
+    start_step = load_optstate(opt, resume_opt, params[0].device) if resume_opt else start_step
     if rank == 0:
         print(f"[s2] {sum(p.numel() for p in params)/1e6:.2f}M trainable (KDA+AttnRes), lr={lr}, steps={steps}, "
               f"accum={accum}, GBS={accum*world_size}", flush=True)
+        if resume_opt:   # NOTE LR: surface the schedule lr the resume will continue at
+            _rlr = set_cosine_lr(opt, start_step, steps, lr) if sched == "cosine" else lr
+            print(f"[s2][resume] schedule continues @ step {start_step}/{steps}: lr={_rlr:.2e} "
+                  f"({'in warmup' if start_step < 200 else 'cosine, NO re-warmup (momentum preserved)'}); "
+                  f"pass SAME --steps/--lr as the original run for an exact continuation", flush=True)
     student.model.train(); t0 = time.time(); ema = None; oom = 0
     for step in range(start_step, steps):
         cur_lr = set_cosine_lr(opt, step, steps, lr) if sched == "cosine" else lr
@@ -238,7 +249,7 @@ def stage2_output_distill(student, teacher, data_iter, steps=12000, lr=1e-4,
         ema = acc/accum if ema is None else 0.98 * ema + 0.02 * (acc/accum)
         if rank == 0 and step % log_every == 0:
             print(f"[s2] step {step}/{steps}  distill_mse {acc/accum:.4f} (ema {ema:.4f})  lr {cur_lr:.2e}  {time.time()-t0:.0f}s", flush=True)
-        if rank == 0 and save_dir and step > 0 and step % 1000 == 0:
+        if rank == 0 and save_dir and step > 0 and step % save_every == 0:
             _save(student, save_dir, step, "s2", opt=opt, total=steps)
     if rank == 0 and save_dir: _save(student, save_dir, steps, "s2", opt=opt, total=steps)
     return student
@@ -252,7 +263,8 @@ def _is_trainable_key(k):
 def _save(student, save_dir, step, tag, opt=None, total=None):
     os.makedirs(save_dir, exist_ok=True)
     from safetensors.torch import save_file
-    sd = {k: v.detach().cpu().contiguous() for k, v in student.model.state_dict().items() if _is_trainable_key(k)}
+    base = getattr(student.model, "_orig_mod", student.model)   # unwrap torch.compile -> clean keys (no _orig_mod.)
+    sd = {k: v.detach().cpu().contiguous() for k, v in base.state_dict().items() if _is_trainable_key(k)}
     path = os.path.join(save_dir, f"wanlin_{tag}_step{step}.safetensors")
     save_file(sd, path)
     msg = f"[save] {len(sd)} trainable tensors -> {path}"
@@ -303,8 +315,13 @@ def main():
     ap.add_argument("--wd", type=float, default=0.0)
     ap.add_argument("--clip", type=float, default=1.0)
     ap.add_argument("--log_every", type=int, default=20)
+    ap.add_argument("--save_every", type=int, default=1000, help="checkpoint every N steps (each save also writes .opt.pt)")
+    ap.add_argument("--start_step", type=int, default=0,
+                    help="loop+schedule start step when NOT using opt.pt (e.g. continue a cosine from warm-started weights)")
     ap.add_argument("--save", type=str, default="/home/wm-vla-rl/_ext/wan_lin_out")
     ap.add_argument("--smoke", action="store_true")
+    ap.add_argument("--compile", action="store_true",
+                    help="torch.compile(student+teacher) fullgraph=False — fuses pointwise/SDPA; KDA Triton op graph-breaks")
     args = ap.parse_args()
 
     if args.smoke:
@@ -326,17 +343,25 @@ def main():
     if not resume_opt and args.resume and args.resume.endswith(".safetensors"):
         cand = args.resume[:-len(".safetensors")] + ".opt.pt"
         if os.path.exists(cand): resume_opt = cand
+    if args.compile:   # AFTER load/resume/broadcast (so those touch raw params); param tensors are shared w/ _orig_mod
+        import torch._dynamo as _dyn
+        _dyn.config.suppress_errors = True   # any graph issue falls back to eager — never crash the run
+        student.model = torch.compile(student.model, fullgraph=False, dynamic=False)
+        teacher.model = torch.compile(teacher.model, fullgraph=False, dynamic=False)
+        if rank == 0:
+            print("[compile] torch.compile(student.model, teacher.model) fullgraph=False dynamic=False "
+                  "(first step pays a one-time compile cost; KDA Triton op graph-breaks, rest fuses)", flush=True)
     di = data_batches(args.latents, batch_size=args.batch, rank=rank, world_size=world_size)
     if args.stage == 1:
         stage1_attn_transfer(student, teacher, lin_idx, di, steps=args.steps, lr=args.lr or 1e-4,
                              accum=args.accum, save_dir=args.save, rank=rank, world_size=world_size,
                              sched=args.sched, wd=args.wd, clip=args.clip, log_every=args.log_every,
-                             resume_opt=resume_opt)
+                             resume_opt=resume_opt, save_every=args.save_every, start_step=args.start_step)
     else:
         stage2_output_distill(student, teacher, di, steps=args.steps, lr=args.lr or 1e-4,
                               accum=args.accum, save_dir=args.save, rank=rank, world_size=world_size,
                               sched=args.sched, wd=args.wd, clip=args.clip, log_every=args.log_every,
-                              resume_opt=resume_opt)
+                              resume_opt=resume_opt, save_every=args.save_every, start_step=args.start_step)
     if world_size > 1:
         import torch.distributed as dist
         dist.barrier(); dist.destroy_process_group()
