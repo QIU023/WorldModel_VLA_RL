@@ -27,8 +27,19 @@ $TR $COMMON --surgery_ckpt "$STUDENT_CKPT" --surgery_ratio 0.75 --surgery_groups
 echo "[eval $(ts)] student videos: $(ls "$GEN_S"/*.mp4 2>/dev/null | wc -l)"
 
 echo "[eval $(ts)] === Phase 3: official VBench scoring (vbench_standard, all 16 dims) ==="
-CUDA_VISIBLE_DEVICES=0 $PY $EXT/wan_eval/vbench_score.py "$GEN_T" wan_teacher "$VBOUT" all > "$EXT/wan_eval/vb_teacher.log" 2>&1
-CUDA_VISIBLE_DEVICES=0 $PY $EXT/wan_eval/vbench_score.py "$GEN_S" wan_student "$VBOUT" all > "$EXT/wan_eval/vb_student.log" 2>&1
+PIP=/home/venv/cosmos_predict2/bin/pip
+score() {  # try on current transformers (5.10 for Wan); if it errors, fall back to 4.33.2 then restore
+  local dir="$1" nm="$2" log="$3"
+  CUDA_VISIBLE_DEVICES=0 $PY $EXT/wan_eval/vbench_score.py "$dir" "$nm" "$VBOUT" all > "$log" 2>&1
+  if [ $? -ne 0 ] && grep -qiE "transformers|ImportError|AttributeError|cannot import" "$log"; then
+    echo "[eval $(ts)] $nm scoring failed on current transformers -> swap to 4.33.2 and retry"
+    $PIP install -q transformers==4.33.2 2>&1 | tail -1
+    CUDA_VISIBLE_DEVICES=0 $PY $EXT/wan_eval/vbench_score.py "$dir" "$nm" "$VBOUT" all >> "$log" 2>&1
+    $PIP install -q transformers==5.10.0 2>&1 | tail -1   # restore for Wan
+  fi
+}
+score "$GEN_T" wan_teacher "$EXT/wan_eval/vb_teacher.log"
+score "$GEN_S" wan_student "$EXT/wan_eval/vb_student.log"
 
 echo "[eval $(ts)] === Phase 4: teacher vs student vs ARL2(75%: Q86.71/S70.24) ==="
 $PY - "$VBOUT" <<'PY'
