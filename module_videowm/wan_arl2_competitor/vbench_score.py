@@ -10,6 +10,11 @@ Usage:
 The official VBench_full_info.json is auto-located inside the installed vbench package.
 """
 import sys, os, json, torch
+# VBench's dimension ckpts (AMT/RAFT/MUSIQ/...) predate torch 2.6's weights_only=True default and contain
+# typing.OrderedDict etc. They are trusted (official VBench releases) -> force weights_only=False (reuse the
+# workaround from the prior cosmos_vbench.py; dropping it caused the motion_smoothness UnpicklingError).
+_orig_load = torch.load
+torch.load = lambda *a, **k: _orig_load(*a, **{**k, "weights_only": False})
 import vbench
 from vbench import VBench
 
