@@ -13,7 +13,8 @@ CONFIG=$CF/configs/causal_forcing_dmd_framewise_2step.yaml
 BASE_CKPT=/home/causal_forcing_ckpt/framewise/causal_forcing.pt   # teacher base (generator_ema)
 STUDENT_CKPT=${STUDENT_CKPT:-$EXT/wan_lin_out/wanlin_s2_step3000.safetensors}
 NFRAMES=${NFRAMES:-21}                                            # 21 latent -> 81 pixel frames (ARL2's 81-frame point)
-BS=${BS:-8}                                                       # batched T2V per GPU (fills 140GB; far faster than batch=1)
+BS=${BS:-8}                                                       # teacher batched T2V per GPU (SDPA, fills 140GB)
+SBS=${SBS:-4}                                                     # STUDENT batch — KDA chunk_kda Triton grid caps lower than teacher (batch 8/16 -> 'invalid argument')
 GEN_T=$WE/gen_teacher; GEN_S=$WE/gen_student; VBOUT=$WE/vbench_out
 ts() { date +%H:%M:%S; }
 cd "$CF"
@@ -30,13 +31,14 @@ gen() {  # $1=output_folder ; $2.. = extra args (surgery). 2 single-GPU procs in
   wait
 }
 
-echo "[eval $(ts)] === Phase 1: generate TEACHER (944 prompts, 2x single-GPU) ==="
-gen "$GEN_T"
+echo "[eval $(ts)] === Phase 1: generate TEACHER (944 prompts, 2x single-GPU, batch=$BS) ==="
+NT0=$(ls "$GEN_T"/*.mp4 2>/dev/null | wc -l)
+if [ "$NT0" -ge 900 ]; then echo "[eval $(ts)] teacher already has $NT0 videos -> SKIP regen"; else gen "$GEN_T"; fi
 NT=$(ls "$GEN_T"/*.mp4 2>/dev/null | wc -l); echo "[eval $(ts)] teacher videos: $NT/944"
 if [ "$NT" -lt 100 ]; then echo "[eval $(ts)] ABORT: teacher gen produced $NT videos (broken). see $GEN_T.g0.log/.g1.log"; exit 1; fi
 
-echo "[eval $(ts)] === Phase 2: generate STUDENT (KDA+AttnRes+LoRA 75%, 2x single-GPU) ==="
-gen "$GEN_S" --surgery_ckpt "$STUDENT_CKPT" --surgery_ratio 0.75 --surgery_groups 4 --surgery_lora_r 8
+echo "[eval $(ts)] === Phase 2: generate STUDENT (KDA+AttnRes+LoRA 75%, 2x single-GPU, batch=$SBS) ==="
+gen "$GEN_S" --surgery_ckpt "$STUDENT_CKPT" --surgery_ratio 0.75 --surgery_groups 4 --surgery_lora_r 8 --batch_size $SBS
 NS=$(ls "$GEN_S"/*.mp4 2>/dev/null | wc -l); echo "[eval $(ts)] student videos: $NS/944"
 if [ "$NS" -lt 100 ]; then echo "[eval $(ts)] ABORT: student gen produced $NS videos (broken). see $GEN_S.g0.log/.g1.log"; exit 1; fi
 
