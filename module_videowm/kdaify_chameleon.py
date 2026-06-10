@@ -112,8 +112,10 @@ class ContinuousActionHead(torch.nn.Module):
     anchor -> 7-dim continuous action (6 arm + 1 gripper), supervised by RAW normalized GT actions (L1 arm
     + BCE gripper). Sidesteps the discrete-token action bottleneck that caps linearized models in closed-loop.
     Sits on top of the (KDA-linearized) backbone; fully trained (small, ~few M params)."""
-    def __init__(self, dim=4096, hidden=1024, n_dim=7, n_layers=3, dropout=0.0):
+    def __init__(self, dim=4096, hidden=1024, n_dim=7, n_layers=3, dropout=0.0,
+                 gaussian=False, init_sigma=0.12):
         super().__init__()
+        import math as _math
         layers = []
         d = dim
         for _ in range(n_layers - 1):
@@ -126,9 +128,19 @@ class ContinuousActionHead(torch.nn.Module):
         # zero-init final layer so it starts as a near-constant (stable warm-start)
         torch.nn.init.zeros_(self.net[-1].weight)
         torch.nn.init.zeros_(self.net[-1].bias)
+        # VLA-OPD-Continuous: global learnable per-dim log-sigma (7 scalars). Init BROAD (~0.12) so the
+        # student's binned Gaussian overlaps the teacher's softmax -> reverse-KL gradient flows (the tiny-
+        # sigma disjoint-support regime has vanishing mu-gradient; see vla_opd_cont.py self-test [4b]).
+        # Only used in the on-policy distillation phase; SFT/strict phases use mu only (log_sigma idle).
+        self.gaussian = gaussian
+        self.log_sigma = torch.nn.Parameter(torch.full((n_dim,), float(_math.log(init_sigma))))
 
-    def forward(self, hidden_at_anchors):  # [M, dim] -> [M, 7]
+    def forward(self, hidden_at_anchors):  # [M, dim] -> [M, 7]  (mean / mu)
         return self.net(hidden_at_anchors)
+
+    def forward_gaussian(self, hidden_at_anchors):  # -> (mu[M,7], log_sigma[7] broadcast to mu.dtype)
+        mu = self.net(hidden_at_anchors)
+        return mu, self.log_sigma.to(mu.dtype)
 
 
 def attach_cont_head(model, dim=None, hidden=1024, n_dim=7, n_layers=3):
