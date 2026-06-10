@@ -144,7 +144,7 @@ def set_cosine_lr(opt, step, total, peak, warmup=200):
 # ----------------------------------------------------------------------------- Stage 1: per-layer attn transfer
 def stage1_attn_transfer(student, teacher, lin_idx, data_iter, steps=6000, lr=1e-4,
                          accum=4, log_every=20, save_dir=None, rank=0, world_size=1,
-                         sched="cosine", wd=0.0, clip=1.0):
+                         sched="cosine", wd=0.0, clip=1.0, resume_opt=None):
     # train ONLY the KDA params (per-layer attn matching); AttnRes is identity at init -> frozen here
     params = [p for n, p in student.model.named_parameters() if is_kda_param(n)]
     for p in student.model.parameters():
@@ -152,6 +152,7 @@ def stage1_attn_transfer(student, teacher, lin_idx, data_iter, steps=6000, lr=1e
     for p in params:
         p.requires_grad_(True)
     opt = torch.optim.AdamW(params, lr=lr, weight_decay=wd, betas=(0.9, 0.95))
+    start_step = load_optstate(opt, resume_opt, params[0].device) if resume_opt else 0
     if rank == 0:
         print(f"[s1] {sum(p.numel() for p in params)/1e6:.2f}M KDA params, lr={lr}, steps={steps}, accum={accum}, "
               f"GBS={accum*world_size}, {len(lin_idx)} linear layers", flush=True)
@@ -166,7 +167,7 @@ def stage1_attn_transfer(student, teacher, lin_idx, data_iter, steps=6000, lr=1e
                for i in lin_idx]
 
     student.model.train(); t0 = time.time(); oom = 0; tgt_rms = None
-    for step in range(steps):
+    for step in range(start_step, steps):
         cur_lr = set_cosine_lr(opt, step, steps, lr) if sched == "cosine" else lr
         opt.zero_grad(); acc = 0.0; bad = False
         for _ in range(accum):
@@ -196,25 +197,26 @@ def stage1_attn_transfer(student, teacher, lin_idx, data_iter, steps=6000, lr=1e
         if rank == 0 and step % log_every == 0:
             print(f"[s1] step {step}/{steps}  attn_mse {acc/accum:.5f}  lr {cur_lr:.2e}  {time.time()-t0:.0f}s", flush=True)
         if rank == 0 and save_dir and step > 0 and step % 1000 == 0:
-            _save(student, save_dir, step, "s1")
+            _save(student, save_dir, step, "s1", opt=opt, total=steps)
     for h in handles: h.remove()
-    if rank == 0 and save_dir: _save(student, save_dir, steps, "s1")
+    if rank == 0 and save_dir: _save(student, save_dir, steps, "s1", opt=opt, total=steps)
     return student
 
 
 # ----------------------------------------------------------------------------- Stage 2: output distillation
 def stage2_output_distill(student, teacher, data_iter, steps=12000, lr=1e-4,
                           accum=4, log_every=20, save_dir=None, rank=0, world_size=1,
-                          sched="cosine", wd=0.0, clip=1.0):
+                          sched="cosine", wd=0.0, clip=1.0, resume_opt=None):
     params = [p for _, p in surgery_trainable_params(student.model)]   # KDA + AttnRes; teacher base frozen
     for p in teacher.parameters():
         p.requires_grad_(False)
     opt = torch.optim.AdamW(params, lr=lr, weight_decay=wd, betas=(0.9, 0.95))
+    start_step = load_optstate(opt, resume_opt, params[0].device) if resume_opt else 0
     if rank == 0:
         print(f"[s2] {sum(p.numel() for p in params)/1e6:.2f}M trainable (KDA+AttnRes), lr={lr}, steps={steps}, "
               f"accum={accum}, GBS={accum*world_size}", flush=True)
     student.model.train(); t0 = time.time(); ema = None; oom = 0
-    for step in range(steps):
+    for step in range(start_step, steps):
         cur_lr = set_cosine_lr(opt, step, steps, lr) if sched == "cosine" else lr
         opt.zero_grad(); acc = 0.0; bad = False
         for _ in range(accum):
@@ -237,8 +239,8 @@ def stage2_output_distill(student, teacher, data_iter, steps=12000, lr=1e-4,
         if rank == 0 and step % log_every == 0:
             print(f"[s2] step {step}/{steps}  distill_mse {acc/accum:.4f} (ema {ema:.4f})  lr {cur_lr:.2e}  {time.time()-t0:.0f}s", flush=True)
         if rank == 0 and save_dir and step > 0 and step % 1000 == 0:
-            _save(student, save_dir, step, "s2")
-    if rank == 0 and save_dir: _save(student, save_dir, steps, "s2")
+            _save(student, save_dir, step, "s2", opt=opt, total=steps)
+    if rank == 0 and save_dir: _save(student, save_dir, steps, "s2", opt=opt, total=steps)
     return student
 
 
@@ -247,13 +249,18 @@ def _is_trainable_key(k):
     return is_kda_param(k) or is_lora_param(k) or ("attnres_coord" in k.split("."))
 
 
-def _save(student, save_dir, step, tag):
+def _save(student, save_dir, step, tag, opt=None, total=None):
     os.makedirs(save_dir, exist_ok=True)
     from safetensors.torch import save_file
     sd = {k: v.detach().cpu().contiguous() for k, v in student.model.state_dict().items() if _is_trainable_key(k)}
     path = os.path.join(save_dir, f"wanlin_{tag}_step{step}.safetensors")
     save_file(sd, path)
-    print(f"[save] {len(sd)} trainable tensors -> {path}", flush=True)
+    msg = f"[save] {len(sd)} trainable tensors -> {path}"
+    if opt is not None:   # companion AdamW state (+schedule position) for EXACT resume (no momentum loss)
+        opath = os.path.join(save_dir, f"wanlin_{tag}_step{step}.opt.pt")
+        torch.save({"opt": opt.state_dict(), "step": step, "total": total}, opath)
+        msg += f"  (+opt {os.path.basename(opath)})"
+    print(msg, flush=True)
 
 
 def load_linstate(student, path):
@@ -264,12 +271,27 @@ def load_linstate(student, path):
     return student
 
 
+def load_optstate(opt, path, device):
+    """Restore AdamW moments (+ the step they were saved at) for a true continue-training resume."""
+    blob = torch.load(path, map_location="cpu")
+    opt.load_state_dict(blob["opt"])
+    for state in opt.state.values():        # AdamW exp_avg/exp_avg_sq must live on the param device
+        for k, v in state.items():
+            if torch.is_tensor(v):
+                state[k] = v.to(device)
+    step = int(blob.get("step", 0))
+    print(f"[resume] optimizer state <- {path} @ step {step} (orig total {blob.get('total')})", flush=True)
+    return step
+
+
 # ----------------------------------------------------------------------------- main
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--stage", type=int, default=1)
     ap.add_argument("--latents", type=str, default=None)
     ap.add_argument("--resume", type=str, default=None)
+    ap.add_argument("--resume_opt", type=str, default=None,
+                    help="path to .opt.pt for EXACT resume (AdamW moments + step); auto-detected next to --resume if present")
     ap.add_argument("--ratio", type=float, default=0.75)
     ap.add_argument("--groups", type=int, default=4)
     ap.add_argument("--steps", type=int, default=6000)
@@ -300,15 +322,21 @@ def main():
         import torch.distributed as dist
         for p in student.model.parameters(): dist.broadcast(p.data, src=0)
         for b in student.model.buffers():    dist.broadcast(b.data, src=0)
+    resume_opt = args.resume_opt   # exact-resume optimizer state (auto-detect sibling of --resume)
+    if not resume_opt and args.resume and args.resume.endswith(".safetensors"):
+        cand = args.resume[:-len(".safetensors")] + ".opt.pt"
+        if os.path.exists(cand): resume_opt = cand
     di = data_batches(args.latents, batch_size=args.batch, rank=rank, world_size=world_size)
     if args.stage == 1:
         stage1_attn_transfer(student, teacher, lin_idx, di, steps=args.steps, lr=args.lr or 1e-4,
                              accum=args.accum, save_dir=args.save, rank=rank, world_size=world_size,
-                             sched=args.sched, wd=args.wd, clip=args.clip, log_every=args.log_every)
+                             sched=args.sched, wd=args.wd, clip=args.clip, log_every=args.log_every,
+                             resume_opt=resume_opt)
     else:
         stage2_output_distill(student, teacher, di, steps=args.steps, lr=args.lr or 1e-4,
                               accum=args.accum, save_dir=args.save, rank=rank, world_size=world_size,
-                              sched=args.sched, wd=args.wd, clip=args.clip, log_every=args.log_every)
+                              sched=args.sched, wd=args.wd, clip=args.clip, log_every=args.log_every,
+                              resume_opt=resume_opt)
     if world_size > 1:
         import torch.distributed as dist
         dist.barrier(); dist.destroy_process_group()
