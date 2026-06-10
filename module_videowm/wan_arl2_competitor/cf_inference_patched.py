@@ -47,6 +47,8 @@ parser.add_argument("--surgery_groups", type=int, default=4)
 parser.add_argument("--surgery_lora_r", type=int, default=8)
 parser.add_argument("--vbench_naming", action="store_true",
                     help="write '{full_prompt}-0.mp4' (VBench vbench_standard convention) instead of '{prompt[:100]}.mp4'")
+parser.add_argument("--batch_size", type=int, default=1,
+                    help="batched T2V generation — fills GPU memory, far higher throughput than batch=1")
 args = parser.parse_args()
 
 # Initialize distributed inference
@@ -72,6 +74,12 @@ torch.set_grad_enabled(False)
 config = OmegaConf.load(args.config_path)
 default_config = OmegaConf.load("configs/default_config.yaml")
 config = OmegaConf.merge(default_config, config)
+
+# This env has NO flash-attn-2 -> route CF's flash_attention to torch SDPA (flash backend) for BOTH teacher & student
+# (teacher path doesn't go through the surgery branch, so it would hit `assert FLASH_ATTN_2_AVAILABLE` without this).
+import sys as _sys0
+if "/home/wm-vla-rl/_ext" not in _sys0.path: _sys0.path.insert(0, "/home/wm-vla-rl/_ext")
+import wan_kda_surgery as _S0; _S0.patch_wan_flash_sdpa()
 
 # Initialize pipeline
 if hasattr(config, 'denoising_step_list'):
@@ -145,7 +153,7 @@ if dist.is_initialized():
     sampler = DistributedSampler(dataset, shuffle=False, drop_last=True)
 else:
     sampler = SequentialSampler(dataset)
-dataloader = DataLoader(dataset, batch_size=1, sampler=sampler, num_workers=0, drop_last=False)
+dataloader = DataLoader(dataset, batch_size=args.batch_size, sampler=sampler, num_workers=0, drop_last=False)
 
 # Create output directory (only on main process to avoid race conditions)
 if local_rank == 0:
@@ -168,83 +176,33 @@ def encode(self, videos: torch.Tensor) -> torch.Tensor:
 
 
 for i, batch_data in tqdm(enumerate(dataloader), disable=(local_rank != 0)):
-    idx = batch_data['idx'].item()
-
-    if isinstance(batch_data, dict):
-        batch = batch_data
-    elif isinstance(batch_data, list):
-        batch = batch_data[0]  # First (and only) item in the batch
-
-    all_video = []
-    num_generated_frames = 0  # Number of generated (latent) frames
-    
-    
+    prompts = batch_data['prompts']
+    if isinstance(prompts, str):
+        prompts = [prompts]
+    B = len(prompts)
     if args.i2v:
+        assert B == 1, "I2V path uses batch_size=1"
         assert config.num_frame_per_block == 1, "Current I2V only supports the frame-wise model."
-        # For image-to-video, batch contains image and caption
-        prompt = batch['prompts'][0]  # Get caption from batch
-        output_path = os.path.join(args.output_folder, (f'{prompt}-0.mp4' if args.vbench_naming else f'{prompt[:100]}.mp4'))
-        if os.path.exists(output_path):
-            print('Video has been generated. Pass!')
-            continue
-        # Process the image
-        image = batch['image'].squeeze(0).unsqueeze(0).unsqueeze(2).to(device=device, dtype=torch.bfloat16)
-
-        # Encode the input image as the first latent
+        image = batch_data['image'].squeeze(0).unsqueeze(0).unsqueeze(2).to(device=device, dtype=torch.bfloat16)
         initial_latent = pipeline.vae.encode_to_latent(image).to(device=device, dtype=torch.bfloat16)
-        prompts = [prompt] 
-        sampled_noise = torch.randn(
-            [1, args.num_output_frames - 1, 16, 60, 104], device=device, dtype=torch.bfloat16
-        )
-    else:
-        # For text-to-video, batch is just the text prompt
-        prompt = batch['prompts'][0]
-        output_path = os.path.join(args.output_folder, (f'{prompt}-0.mp4' if args.vbench_naming else f'{prompt[:100]}.mp4'))
-        if os.path.exists(output_path):
-            print('Video has been generated. Pass!')
-            continue
-        extended_prompt = batch['extended_prompts'][0] if 'extended_prompts' in batch else None
-        if extended_prompt is not None:
-            prompts = [extended_prompt] 
-        else:
-            prompts = [prompt] 
-
+        text_prompts = [prompts[0]]
+        sampled_noise = torch.randn([1, args.num_output_frames - 1, 16, 60, 104], device=device, dtype=torch.bfloat16)
+    else:                                                              # batched T2V (fills GPU, high throughput)
+        text_prompts = list(prompts)
+        if 'extended_prompts' in batch_data:
+            ep = batch_data['extended_prompts']
+            text_prompts = [(e if e else p) for e, p in zip(ep, prompts)]
         initial_latent = None
-        sampled_noise = torch.randn(
-            [1, args.num_output_frames, 16, 60, 104], device=device, dtype=torch.bfloat16
-        )
+        sampled_noise = torch.randn([B, args.num_output_frames, 16, 60, 104], device=device, dtype=torch.bfloat16)
 
-    sample_report_timing = args.report_timing and i >= 1
     video, latents = pipeline.inference(
-        noise=sampled_noise,
-        text_prompts=prompts,
-        return_latents=True,
-        initial_latent=initial_latent,
-        report_timing=sample_report_timing,
+        noise=sampled_noise, text_prompts=text_prompts,
+        return_latents=True, initial_latent=initial_latent,
     )
-    if sample_report_timing:
-        latency = pipeline.first_chunk_time
-        elapsed = pipeline.last_generation_time
-        num_pixel_frames = video.shape[1]
-        fps = num_pixel_frames / elapsed if elapsed > 0 else float('inf')
-        print(f"[Sample {i}] {num_pixel_frames} frames, "
-              f"latency ↓ {latency:.2f}s, FPS ↑ {fps:.2f}")
-        # Only tested on A800, for the Causal Forcing++ paper latency & throughput.
-        # Not make claims for other hardware like H100.
-        # For the result on H100, refer to the reported results in the Self Forcing paper.
-        # We do not guarantee that our FPS/latency measurement protocol is identical to that used in the Self Forcing paper.
-    current_video = rearrange(video, 'b t c h w -> b t h w c').cpu()
-    all_video.append(current_video)
-    num_generated_frames += latents.shape[1]
-
-    # Final output video
-    clean_latent = latents[0].cpu() 
-    video = 255.0 * torch.cat(all_video, dim=1)
-
-    # Clear VAE cache
+    video = 255.0 * rearrange(video, 'b t c h w -> b t h w c').cpu()   # [B,T,H,W,C] float in [0,255]
     pipeline.vae.model.clear_cache()
-
-    output_path = os.path.join(args.output_folder, (f'{prompt}-0.mp4' if args.vbench_naming else f'{prompt[:100]}.mp4'))
-    write_video(output_path, video[0], fps=16)
+    for j, prompt in enumerate(prompts):
+        output_path = os.path.join(args.output_folder, (f'{prompt}-0.mp4' if args.vbench_naming else f'{prompt[:100]}.mp4'))
+        write_video(output_path, video[j], fps=16)
 
        

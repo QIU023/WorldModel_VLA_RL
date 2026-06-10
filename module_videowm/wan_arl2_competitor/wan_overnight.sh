@@ -25,25 +25,32 @@ sleep 15
 log "S2c done + GPUs released. student ckpt present ($(du -h "$STUDENT"|cut -f1)). final S2c log:"
 tr '\r' '\n' < $EXT/wan_s2c.log | grep -aE '\[s2\] step' | tail -2
 
-# ---- Phase 1: SANITY (4 prompts, single GPU) ----
-log "=== Phase 1: SANITY student gen (4 prompts) ==="
-head -4 "$PROMPTS" > $EXT/wan_eval/sanity_prompts.txt
-SAN=$EXT/wan_eval/gen_sanity; rm -rf "$SAN"
+# ---- Phase 1: SANITY (test BOTH teacher AND student gen paths, 2 prompts each, single GPU) ----
+log "=== Phase 1: SANITY teacher+student gen ==="
+head -2 "$PROMPTS" > $EXT/wan_eval/sanity_prompts.txt
 cd "$CF"
+# teacher path (no surgery) — catches flash-attn / base-load issues the student path would mask
+ST=$EXT/wan_eval/gen_sanity_t; rm -rf "$ST"
+CUDA_VISIBLE_DEVICES=0 $PY $CF/inference.py --config_path $CONFIG --checkpoint_path $BASE --use_ema \
+  --data_path $EXT/wan_eval/sanity_prompts.txt --num_output_frames 21 --vbench_naming --batch_size 2 \
+  --output_folder "$ST" > $EXT/wan_eval/sanity_teacher.log 2>&1
+NVT=$(ls "$ST"/*.mp4 2>/dev/null | wc -l)
+# student path (surgery)
+SAN=$EXT/wan_eval/gen_sanity; rm -rf "$SAN"
 CUDA_VISIBLE_DEVICES=0 $PY $CF/inference.py --config_path $CONFIG --checkpoint_path $BASE --use_ema \
   --surgery_ckpt $STUDENT --surgery_ratio 0.75 --surgery_groups 4 --surgery_lora_r 8 \
-  --data_path $EXT/wan_eval/sanity_prompts.txt --num_output_frames 21 --vbench_naming \
+  --data_path $EXT/wan_eval/sanity_prompts.txt --num_output_frames 21 --vbench_naming --batch_size 2 \
   --output_folder "$SAN" > $EXT/wan_eval/sanity.log 2>&1
 UNEXP=$(grep -aoE "unexpected=[0-9]+" $EXT/wan_eval/sanity.log | head -1 | grep -oE "[0-9]+")
 NVID=$(ls "$SAN"/*.mp4 2>/dev/null | wc -l)
-log "sanity: surgery unexpected=${UNEXP:-?}  videos=${NVID}"
-if [ "${UNEXP:-99}" != "0" ] || [ "$NVID" -lt 1 ]; then
-  log "!!! SANITY FAILED (unexpected=${UNEXP:-?}, videos=${NVID}). Aborting before the 4h full run. See sanity.log"
+log "sanity: teacher_videos=${NVT}  student_videos=${NVID}  surgery_unexpected=${UNEXP:-?}"
+if [ "$NVT" -lt 1 ] || [ "${UNEXP:-99}" != "0" ] || [ "$NVID" -lt 1 ]; then
+  log "!!! SANITY FAILED (teacher=${NVT}, student=${NVID}, unexpected=${UNEXP:-?}). Aborting. See sanity_teacher.log / sanity.log"
   echo "# OVERNIGHT ABORTED at sanity ($(ts))" > "$REPORT"
-  echo "surgery unexpected=${UNEXP:-?} (must be 0), videos=${NVID}. See wan_eval/sanity.log" >> "$REPORT"
+  echo "teacher_videos=${NVT} student_videos=${NVID} unexpected=${UNEXP:-?}. See wan_eval/sanity*.log" >> "$REPORT"
   exit 1
 fi
-log "SANITY PASS -> full eval"
+log "SANITY PASS (teacher+student both gen) -> full eval"
 
 # ---- Phase 2: FULL VBench (standard impls) ----
 log "=== Phase 2: FULL VBench eval (944 prompts, teacher+student) ==="
