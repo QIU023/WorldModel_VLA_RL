@@ -1,0 +1,295 @@
+diff --git a/worldvla/eval_solver_libero_256.py b/worldvla/eval_solver_libero_256.py
+index f15374b..1e46a0d 100644
+--- a/worldvla/eval_solver_libero_256.py
++++ b/worldvla/eval_solver_libero_256.py
+@@ -32,7 +32,11 @@ from libero_util.robot_utils import (
+     set_seed_everywhere,
+ )
+ 
+-from libero_util.Chameleon_utils import get_action_Chameleon_dis_awm_ck
++from libero_util.Chameleon_utils import (
++    get_action_Chameleon_dis_awm_ck,
++    get_action_Chameleon_cont_awm_ck,
++    get_action_Chameleon_cont_awm_ck_cached,
++)
+ from data.pre_tokenize_action import ItemProcessor
+ import time
+ import xllmx.util as util
+@@ -75,6 +79,15 @@ class Solver(PretrainSolverBase):
+         parser.add_argument("--his", type=str, default="1h_1a", choices=["1h_1a", "2h_1a", "4h_1a", "2h_2a", "4h_4a", "1h_1a_img_only", "2h_1a_img_only", "4h_1a_img_only"])
+         parser.add_argument("--action_steps", default=25, type=int, help="actions to be excuted when multiple actions are generated")
+         parser.add_argument("--half", default=0, type=int, help="which part of test set will be evaluated")
++        parser.add_argument("--n_trials", default=50, type=int, help="episodes per task (<=50 init states)")
++        parser.add_argument("--shard_idx", default=0, type=int, help="this proc's shard index (round-robin over tasks)")
++        parser.add_argument("--n_shards", default=1, type=int, help="total shards; >1 enables parallel task-sharded eval (overrides --half)")
++        # KDA + AttnRes surgery (match training-time architecture before loading weights)
++        parser.add_argument("--attn_type", type=str, default="sdpa", choices=["sdpa", "kda"])
++        parser.add_argument("--kda_layers", type=str, default="kimi", help="kimi(3:1)/all/逗号索引")
++        parser.add_argument("--use_attnres", action="store_true", default=False)
++        parser.add_argument("--attnres_groups", type=int, default=8)
++        parser.add_argument("--cont_head", action="store_true", default=False)  # continuous action head decode
+         return parser
+ 
+     def _model_func(
+@@ -95,6 +108,43 @@ class Solver(PretrainSolverBase):
+             device_map="cpu",
+         )
+ 
++        if getattr(self.args, "attn_type", "sdpa") == "kda":
++            # The ckpt's safetensors carry KDA + AttnRes module keys (model.layers.N.inner.self_attn.*).
++            # from_pretrained above (standard arch) only matched the non-layer keys; rebuild the exact
++            # surgery tree, then overwrite ALL weights from the trained sharded safetensors.
++            import sys as _sys, glob as _glob, os as _os
++            _sys.path.insert(0, "/home/wm-vla-rl/module_videowm")
++            from kdaify_chameleon import kdaify_chameleon, attnres_ify_chameleon, kimi_kda_layers
++            from safetensors.torch import load_file as _load_file
++
++            if hasattr(model.model, "vqmodel"):
++                del model.model.vqmodel
++            nl = model.config.num_hidden_layers
++            if self.args.kda_layers == "kimi":
++                kset = kimi_kda_layers(nl)
++            elif self.args.kda_layers == "all":
++                kset = None
++            else:
++                kset = set(int(x) for x in self.args.kda_layers.split(","))
++            kdaify_chameleon(model, layers=kset, init_from_softmax=False)
++            if self.args.use_attnres:
++                attnres_ify_chameleon(model, groups=self.args.attnres_groups)
++            if getattr(self.args, "cont_head", False):   # attach BEFORE load so cont_action_head.* keys match
++                from kdaify_chameleon import attach_cont_head
++                attach_cont_head(model)
++
++            sd = {}
++            for f in sorted(_glob.glob(_os.path.join(init_from, "model-*.safetensors"))):
++                sd.update(_load_file(f))
++            sd = {k: v.to(torch.bfloat16) for k, v in sd.items()}
++            missing, unexpected = model.load_state_dict(sd, strict=False)
++            missing = [m for m in missing if "vqmodel" not in m]
++            self.logger.info(f"[KDA eval] loaded {len(sd)} tensors | missing(non-vq)={len(missing)} unexpected={len(unexpected)}")
++            if missing:
++                self.logger.info(f"[KDA eval] sample missing: {missing[:8]}")
++            if unexpected:
++                self.logger.info(f"[KDA eval] sample unexpected: {unexpected[:8]}")
++
+         return model, None
+ 
+     def _item_processor_func(self) -> ItemProcessor:
+@@ -152,7 +202,11 @@ class Solver(PretrainSolverBase):
+         total_episodes, total_successes = 0, 0
+         # for task_id in tqdm.tqdm(range(3)):
+         
+-        if args.half == 0:
++        if getattr(args, "n_shards", 1) > 1:
++            # parallel task-sharded eval: proc `shard_idx` takes tasks shard_idx, shard_idx+n_shards, ...
++            episode_range = range(args.shard_idx, num_tasks_in_suite, args.n_shards)
++            print(f"[shard {args.shard_idx}/{args.n_shards}] tasks: {list(episode_range)}")
++        elif args.half == 0:
+             episode_range = range(num_tasks_in_suite)
+         elif args.half == 1:
+             episode_range = range(0, num_tasks_in_suite//2, 1)
+@@ -191,7 +245,7 @@ class Solver(PretrainSolverBase):
+             task_episodes, task_successes = 0, 0
+ 
+             # 使用 tqdm 进行进度条显示
+-            for episode_idx in tqdm.tqdm(range(50)):
++            for episode_idx in tqdm.tqdm(range(self.args.n_trials)):
+                 print(f"\nTask: {task_description}")
+ 
+                 # Reset environment
+@@ -251,16 +305,31 @@ class Solver(PretrainSolverBase):
+                         if len(actions_ck) == 0:
+                             import time
+                             start = time.time()
+-                            dis_action = get_action_Chameleon_dis_awm_ck(
+-                                self.model,
+-                                cur_img,
+-                                task_description,
+-                                item_processor,
+-                                his_img,
+-                                his_action,
+-                                self.args.his,
+-                                self.args.action_steps
+-                            )
++                            if getattr(self.args, "cont_head", False):
++                                # CONT_CACHED=1 -> KV-cached incremental decode (prefill + per-chunk
++                                # incremental, ~1.6x faster decode but ~18% open-loop trajectory drift
++                                # from bf16 chunk_kda-vs-fused_recurrent_kda + discretization-feedback
++                                # chaos; verified-correct teacher-forced but exceeds the 3% match bar, and
++                                # the eval is rendering-bound so it buys ~nothing). DEFAULT (unset/0) uses
++                                # the deterministic full-seq OPEN-LOOP path (the fair, reference protocol).
++                                _cont_fn = (get_action_Chameleon_cont_awm_ck_cached
++                                            if os.environ.get("CONT_CACHED", "0") == "1"
++                                            else get_action_Chameleon_cont_awm_ck)
++                                dis_action = _cont_fn(
++                                    self.model, cur_img, task_description, item_processor,
++                                    his_img, his_action, self.args.his, self.args.action_steps,
++                                )
++                            else:
++                                dis_action = get_action_Chameleon_dis_awm_ck(
++                                    self.model,
++                                    cur_img,
++                                    task_description,
++                                    item_processor,
++                                    his_img,
++                                    his_action,
++                                    self.args.his,
++                                    self.args.action_steps
++                                )
+                             print(time.time()-start)
+                             for i in range(len(dis_action)):
+                                 actions_ck.append(dis_action[i].cpu().float().detach().numpy())
+diff --git a/worldvla/libero_util/Chameleon_utils.py b/worldvla/libero_util/Chameleon_utils.py
+index b1bb7c4..4388a27 100644
+--- a/worldvla/libero_util/Chameleon_utils.py
++++ b/worldvla/libero_util/Chameleon_utils.py
+@@ -654,3 +654,149 @@ def reconstruct_img(item_processor, img):
+     g_image = item_processor.decode_image(tokens[1:-1])
+ 
+     return g_image
++
++
++def get_action_Chameleon_cont_awm_ck(model, cur_img, task_description, item_processor,
++                                     his_img, his_action, his_type, action_steps, n_chunks=10):
++    """Continuous-action-head decode (OFT/VITA style): build the img_only prompt, then autoregressively
++    append action_start(10004), forward (training branch computes model._cont_preds at all positions),
++    read the cont head at the just-appended action_start -> 7-dim NORMALIZED action; discretize it back
++    to dim tokens + action_end(15004) to keep the context faithful, repeat n_chunks. Returns list of
++    [7] normalized action tensors (eval unnorm_min_max handles denorm). Single-GPU eval -> no FSDP gather
++    issue; model._cont_preds is read directly."""
++    import numpy as _np, torch as _t
++    # prompt (mirror the dis 2h_1a_img_only / 1h / 4h variants; action:[])
++    if his_type == "2h_1a_img_only":
++        val = "What action should the robot take to " + task_description + "?" + "<|image|>" * len(his_img[-1:]) + "<|image|>"
++        imgs = his_img[-1:] + [cur_img]
++    elif his_type == "1h_1a_img_only":
++        val = "What action should the robot take to " + task_description + "?" + "<|image|>"
++        imgs = [cur_img]
++    elif his_type == "4h_1a_img_only":
++        val = "What action should the robot take to " + task_description + "?" + "<|image|>" * len(his_img[-3:]) + "<|image|>"
++        imgs = his_img[-3:] + [cur_img]
++    else:
++        raise ValueError(f"cont head decode: unsupported his_type {his_type}")
++    conv = {"conversations": [{"from": "human", "value": val}], "image": imgs, "action": []}
++    tokens = item_processor.process_item(conv, training_mode=False)
++    seq = list(tokens)
++    ACT_START = item_processor.token2id(item_processor.action_start_token)   # 10004
++    ACT_END = item_processor.token2id(item_processor.action_end_token)       # 15004
++    bins = item_processor.bins
++    import os as _os
++    n_chunks = int(_os.environ.get("CONT_NCHUNKS", n_chunks))   # =1 -> regenerate every step (kill open-loop chunk drift)
++    actions = []
++    for _k in range(n_chunks):
++        seq = seq + [ACT_START]
++        # model.forward (training branch) expects input_ids as a list of token-lists (pads + tensorizes internally)
++        with _t.no_grad():
++            model(input_ids=[seq], labels=[[-100] * len(seq)], output_hidden_states=True, training=True, att_mask=True)
++        cp = model._cont_preds[0, -1].float().cpu().numpy()       # [7] at the action_start
++        arm = _np.clip(cp[:6], -1.0, 1.0)
++        grip = 2.0 * (1.0 / (1.0 + _np.exp(-cp[6]))) - 1.0        # gripper: BCE logit -> prob -> [-1,1]
++        act_norm = _np.concatenate([arm, [grip]]).astype(_np.float32)
++        actions.append(_t.tensor(act_norm))
++        dims = (_np.digitize(act_norm, bins) + ACT_START + 1).tolist()   # same discretization as process_action
++        seq = seq + dims + [ACT_END]
++    return actions
++
++
++def get_action_Chameleon_cont_awm_ck_cached(model, cur_img, task_description, item_processor,
++                                            his_img, his_action, his_type, action_steps, n_chunks=25):
++    """KV-CACHED open-loop chunked continuous-action decode — drop-in faster replacement for
++    get_action_Chameleon_cont_awm_ck. Instead of re-running the WHOLE growing sequence (incl. the
++    image-heavy prompt) per chunk, this PREFILLS prompt+images+first action_start once (use_cache=True,
++    fresh DynamicCache, cache_position[0]==0 which RESETS the KDA recurrent state), reads the cont head
++    at the action_start -> action 0, then for each subsequent chunk INCREMENTALLY appends the discretized
++    action tokens + action_end + next action_start (advancing cache_position; KDA carries its O(1)
++    recurrent state, full-attn layers reuse cached K/V) and reads the cont head at the new action_start.
++
++    Attention masking faithfully replicates model.generate_att_mask_3 (the training-time mask): each
++    action block masks ALL previous action blocks for the FULL-ATTENTION layers, while the KDA layers are
++    a pure causal recurrence that ignores the mask (see module_videowm/kda_llama.py). We rebuild this per
++    step with a 4D additive mask from per-position block ids (-1=prompt, k=action block k): query i
++    attends key j iff j<=i (causal) AND (block(j)==-1 OR block(j)==block(i)). For the read position
++    (an action_start) this means it sees only prompt+images+itself in the full-attn layers — exactly the
++    full-seq path. Returns list of [7] normalized action tensors (eval's unnorm_min_max denorms). bf16
++    chunk_kda(prefill)-vs-fused_recurrent_kda(decode) rounding => ~1-2% action deviation vs the slow path
++    (validated in test_cont_cache.py)."""
++    import numpy as _np, torch as _t, os as _os
++    from transformers import DynamicCache
++    if his_type == "2h_1a_img_only":
++        val = "What action should the robot take to " + task_description + "?" + "<|image|>" * len(his_img[-1:]) + "<|image|>"
++        imgs = his_img[-1:] + [cur_img]
++    elif his_type == "1h_1a_img_only":
++        val = "What action should the robot take to " + task_description + "?" + "<|image|>"
++        imgs = [cur_img]
++    elif his_type == "4h_1a_img_only":
++        val = "What action should the robot take to " + task_description + "?" + "<|image|>" * len(his_img[-3:]) + "<|image|>"
++        imgs = his_img[-3:] + [cur_img]
++    else:
++        raise ValueError(f"cont head cached decode: unsupported his_type {his_type}")
++    conv = {"conversations": [{"from": "human", "value": val}], "image": imgs, "action": []}
++    tokens = item_processor.process_item(conv, training_mode=False)
++    ACT_START = item_processor.token2id(item_processor.action_start_token)   # 10004
++    ACT_END = item_processor.token2id(item_processor.action_end_token)       # 15004
++    bins = item_processor.bins
++    n_chunks = int(_os.environ.get("CONT_NCHUNKS", n_chunks))
++
++    base = model.model                                  # ChameleonModel (threads use_cache/past_key_values/cache_position)
++    head = model.cont_action_head
++    dev = next(base.parameters()).device
++    dtype = next(base.parameters()).dtype
++    min_dtype = _t.finfo(dtype).min
++    _hd = next(head.parameters()).dtype
++
++    # reset KDA recurrent state on every module (prefill's cache_position[0]==0 also resets, but be explicit)
++    for mod in model.modules():
++        if hasattr(mod, "_kda_state"):
++            mod._kda_state = None
++    pkv = DynamicCache()
++
++    def _mask4d(q_pos, q_blk, all_blk):
++        # q_pos[q] global query positions; q_blk[q] block id of queries; all_blk[kv] block id of all keys
++        kv = all_blk.shape[0]
++        key_idx = _t.arange(kv, device=dev)
++        causal = key_idx[None, :] <= q_pos[:, None]
++        same = (all_blk[None, :] == -1) | (all_blk[None, :] == q_blk[:, None])
++        attend = causal & same
++        m = _t.zeros((q_pos.shape[0], kv), dtype=dtype, device=dev)
++        m.masked_fill_(~attend, min_dtype)
++        return m[None, None]                            # [1,1,q,kv] additive (0=attend, min=mask), max==0
++
++    def _decode_head(out):
++        cp = head(out.last_hidden_state[:, -1].to(_hd))[0].float().cpu().numpy()   # [7] at the action_start
++        arm = _np.clip(cp[:6], -1.0, 1.0)
++        grip = 2.0 * (1.0 / (1.0 + _np.exp(-cp[6]))) - 1.0
++        return _np.concatenate([arm, [grip]]).astype(_np.float32)
++
++    actions = []
++    # ---- prefill: prompt(text+images) + action_start_0 ----
++    seq0 = list(tokens) + [ACT_START]
++    all_blk = _t.tensor([-1] * len(tokens) + [0], device=dev)   # prompt=-1, action_start_0 -> block 0
++    cur_len = len(seq0)
++    q_pos = _t.arange(cur_len, device=dev)
++    with _t.no_grad():
++        out = base(input_ids=_t.tensor([seq0], dtype=_t.int64, device=dev),
++                   attention_mask=_mask4d(q_pos, all_blk, all_blk),
++                   past_key_values=pkv, use_cache=True, cache_position=q_pos,
++                   output_hidden_states=True)
++    act_norm = _decode_head(out)
++    actions.append(_t.tensor(act_norm))
++
++    # ---- incremental decode: append [dims_{k-1}(7), action_end(1), action_start_k(1)] per chunk ----
++    for k in range(1, n_chunks):
++        dims = (_np.digitize(act_norm, bins) + ACT_START + 1).astype(_np.int64).tolist()   # 7 tokens
++        appended = dims + [ACT_END, ACT_START]
++        q_blk = _t.tensor([k - 1] * 8 + [k], device=dev)        # dims+action_end -> block k-1; action_start -> block k
++        all_blk = _t.cat([all_blk, q_blk])
++        q_pos = _t.arange(cur_len, cur_len + 9, device=dev)
++        with _t.no_grad():
++            out = base(input_ids=_t.tensor([appended], dtype=_t.int64, device=dev),
++                       attention_mask=_mask4d(q_pos, q_blk, all_blk),
++                       past_key_values=pkv, use_cache=True, cache_position=q_pos,
++                       output_hidden_states=True)
++        act_norm = _decode_head(out)
++        actions.append(_t.tensor(act_norm))
++        cur_len += 9
++    return actions
