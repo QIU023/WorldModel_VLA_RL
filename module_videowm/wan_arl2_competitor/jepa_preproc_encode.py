@@ -31,8 +31,8 @@ OUT = "/home/wan_jepa_feats"
 CKPT = "/home/.cache/torch/hub/checkpoints/vjepa2-ac-vitg.pt"   # full AC ckpt; we load ["encoder"]
 IMAGENET_MEAN = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1, 1)
 IMAGENET_STD = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1, 1)
-NUM_FRAMES = 64        # encoder native temporal length (-> 32 tubelets, in-distribution RoPE)
-T_VJEPA = 2            # stored temporal groups (mean-pool of the 32 tubelets)
+NUM_FRAMES = int(os.environ.get("JEPA_NUM_FRAMES", 64))   # encoder native temporal length (64 -> 32 tubelets)
+T_VJEPA = int(os.environ.get("JEPA_T", 2))                # stored temporal groups (mean-pool of the tubelets)
 H, W = 480, 832        # full res -> 30x52 patch grid == Wan spatial grid
 GRID_H, GRID_W = H // 16, W // 16   # 30, 52
 
