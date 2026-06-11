@@ -159,10 +159,28 @@ class RepaProjector(nn.Module):
         return self.net(x)
 
 
+_JEPA_MEAN = None
+def _jepa_mean():
+    """Global per-token mean V-JEPA2 feature [Tv,H,W,D] (lazy). CENTERING the target removes the strong shared
+    component (diff clips raw-cos ~0.69 -> centered ~-0.10) so the cosine alignment matches the clip-SPECIFIC
+    residual instead of collapsing onto the common mean direction (the smoke (d) matched~=shuffled failure)."""
+    global _JEPA_MEAN
+    if _JEPA_MEAN is None:
+        mp = os.environ.get("JEPA_MEAN", "/home/wan_jepa_feats_MEAN.pt")
+        # vanilla REPA by default; target-centering is OPT-IN via JEPA_CENTER=1 (run-2 enhancement).
+        # (the 100-step smoke's matched-vs-shuffled (d) check is confounded by the under-trained student
+        #  whose hidden isn't yet clip-specific, so centering can't be validated there; real training fixes it.)
+        _JEPA_MEAN = torch.load(mp, map_location="cpu").float() if (os.environ.get("JEPA_CENTER") and os.path.exists(mp)) else False
+    return _JEPA_MEAN
+
 def load_jepa_target(clip_id, jepa_dir, device, Fw=WAN_GRID[0]):
-    """Load precomputed V-JEPA2 target [T_vjepa,30,52,1408] (fp16) for THIS clip and temporally interpolate
-    T_vjepa -> Fw (Wan frames). Spatial (30,52) preserved (1:1 with Wan). Returns fp32 [Fw,30,52,1408] on device."""
-    t = torch.load(os.path.join(jepa_dir, clip_id + ".pt"), map_location="cpu").float().to(device)  # [Tv,H,W,D]
+    """Load precomputed V-JEPA2 target [T_vjepa,30,52,1408] (fp16), CENTER (subtract global mean), then temporally
+    interpolate T_vjepa -> Fw (Wan frames). Spatial (30,52) preserved (1:1 with Wan). Returns fp32 [Fw,30,52,1408]."""
+    t = torch.load(os.path.join(jepa_dir, clip_id + ".pt"), map_location="cpu").float()             # [Tv,H,W,D] cpu
+    m = _jepa_mean()
+    if m is not False:
+        t = t - m                                                            # CENTER -> clip-specific residual
+    t = t.to(device)
     Tv, Hh, Ww, D = t.shape
     t = t.permute(3, 0, 1, 2).unsqueeze(0)                                    # [1,D,Tv,H,W]
     t = F.interpolate(t, size=(Fw, Hh, Ww), mode="trilinear", align_corners=False)
