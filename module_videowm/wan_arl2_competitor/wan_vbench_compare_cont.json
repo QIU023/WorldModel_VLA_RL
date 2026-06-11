@@ -1,0 +1,25 @@
+{
+  "teacher": {
+    "subject_consistency": 0.9407684148547963,
+    "background_consistency": 0.9592672658521075,
+    "temporal_flickering": 0.957603160733491,
+    "motion_smoothness": 0.9812623840608209,
+    "aesthetic_quality": 0.6733796734322783,
+    "imaging_quality": 0.6959372049015419,
+    "dynamic_degree": 0.9583333333333334
+  },
+  "student_cont9k": {
+    "subject_consistency": 0.8897281740727421,
+    "background_consistency": 0.9179133393043696,
+    "temporal_flickering": 0.9542947203692268,
+    "motion_smoothness": 0.973029822495859,
+    "aesthetic_quality": 0.6415272726807543,
+    "imaging_quality": 0.658655408547565,
+    "dynamic_degree": 0.8333333333333334
+  },
+  "quality_avg": {
+    "teacher": 88.09359195954814,
+    "student_orig3k": 83.48477617546007,
+    "student_cont9k": 83.83545815434071
+  }
+}
