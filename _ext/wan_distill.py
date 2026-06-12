@@ -145,6 +145,9 @@ def set_cosine_lr(opt, step, total, peak, warmup=200):
 # ----------------------------------------------------------------------------- REPA / V-JEPA2 alignment (§3a)
 DIM_VJEPA = 1408            # V-JEPA2 ViT-g encoder embed_dim (the precomputed target feature dim)
 WAN_GRID = (21, 30, 52)     # Wan DiT token grid (F,H,W);  21*30*52 == 32760 tokens
+JEPA_POOL = 2               # run-2: align at a 2x2-pooled spatial grid (30x52 -> 15x26). The V-JEPA2 target is
+                            # stored pre-pooled at 15x26 (so T_VJEPA could be raised 2->8 at equal disk); we pool
+                            # the Wan DiT hidden the SAME 2x2 way here so spatial alignment stays 1:1 at 15x26.
 
 
 class RepaProjector(nn.Module):
@@ -174,8 +177,10 @@ def _jepa_mean():
     return _JEPA_MEAN
 
 def load_jepa_target(clip_id, jepa_dir, device, Fw=WAN_GRID[0]):
-    """Load precomputed V-JEPA2 target [T_vjepa,30,52,1408] (fp16), CENTER (subtract global mean), then temporally
-    interpolate T_vjepa -> Fw (Wan frames). Spatial (30,52) preserved (1:1 with Wan). Returns fp32 [Fw,30,52,1408]."""
+    """Load precomputed V-JEPA2 target [T_vjepa,15,26,1408] (fp16), CENTER (subtract global mean), then temporally
+    interpolate T_vjepa -> Fw (Wan frames). Spatial (15,26) preserved (1:1 with the 2x2-pooled Wan hidden).
+    Returns fp32 [Fw,15,26,1408]. (Grid-agnostic: spatial dims are read from the stored tensor, so run-1's
+    30x52 and run-2's 15x26 both load correctly; run-2 stores 15x26 with T_vjepa=8.)"""
     t = torch.load(os.path.join(jepa_dir, clip_id + ".pt"), map_location="cpu").float()             # [Tv,H,W,D] cpu
     m = _jepa_mean()
     if m is not False:
@@ -187,15 +192,23 @@ def load_jepa_target(clip_id, jepa_dir, device, Fw=WAN_GRID[0]):
     return t.squeeze(0).permute(1, 2, 3, 0).contiguous()                      # [Fw,H,W,D]
 
 
-def repa_align_loss(hidden, targets, projector, grid=WAN_GRID):
-    """hidden [B, F*H*W, dim_wan] (student DiT mid-block hidden, grad-carrying) ; targets [B,F,H,W,dim_v] fp32.
-    Returns mean(1 - cos(proj(hidden), target)) over every (b,f,h,w) token. Spatial 1:1, temporal already
-    interpolated to F. Math in fp32."""
+def pool_hidden_spatial(hidden, grid=WAN_GRID, pool=JEPA_POOL):
+    """Wan DiT hidden [B, F*H*W, dim_wan] (full grid) -> [B, F, H//pool, W//pool, dim_wan] via spatial pxp avg-pool.
+    Matches the 15x26 V-JEPA2 target (run-2). Returns fp32. Shared by repa_align_loss AND jepa_smoke (one code path)."""
     Fw, Hh, Ww = grid
-    B = hidden.shape[0]
-    h = hidden.float().reshape(B, Fw, Hh, Ww, -1)
-    p = projector(h)                                                          # [B,F,H,W,dim_v]
-    cos = F.cosine_similarity(p, targets, dim=-1)                             # [B,F,H,W]
+    B = hidden.shape[0]; C = hidden.shape[-1]
+    h = hidden.float().reshape(B * Fw, Hh, Ww, C).permute(0, 3, 1, 2)         # [B*F, C, H, W]
+    h = F.avg_pool2d(h, kernel_size=pool, stride=pool)                        # [B*F, C, H//p, W//p]
+    return h.permute(0, 2, 3, 1).reshape(B, Fw, Hh // pool, Ww // pool, C)    # [B,F,15,26,dim_wan]
+
+
+def repa_align_loss(hidden, targets, projector, grid=WAN_GRID):
+    """hidden [B, F*H*W, dim_wan] (student DiT mid-block hidden, grad-carrying) ; targets [B,F,15,26,dim_v] fp32.
+    Returns mean(1 - cos(proj(pool(hidden)), target)) over every (b,f,h,w) token of the 2x2-POOLED grid.
+    Spatial 1:1 with the pre-pooled 15x26 target, temporal already interpolated to F. Math in fp32."""
+    h = pool_hidden_spatial(hidden, grid)                                     # [B,F,15,26,dim_wan]
+    p = projector(h)                                                          # [B,F,15,26,dim_v]
+    cos = F.cosine_similarity(p, targets, dim=-1)                             # [B,F,15,26]
     return (1.0 - cos).mean()
 
 

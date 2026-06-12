@@ -4,7 +4,7 @@ load_jepa_target / repa_align_loss) so we test the same code path the full run u
 
 Checks (ALL must pass):
   (a) both loss terms finite, non-NaN, no shape error;
-  (b) proj output [B,21,30,52,1408] matches the temporally-interpolated target;
+  (b) proj output [B,21,15,26,1408] matches the temporally-interpolated target (run-2: 2x2-pooled spatial grid);
   (c) magnitude balance: lam*l_align is within ~0.3-3x of distill_mse;
   (d) matched-vs-shuffled: l_align with the CORRECTLY-matched clip target MUST be clearly lower than with a
       MISMATCHED clip's target (here: the previous step's target, a different clip). If matched ~= shuffled the
@@ -73,9 +73,9 @@ def main():
         hidden = cache["h"]                                    # [B, 32760, 1536]
         B = hidden.shape[0]
         tg = torch.stack([WD.load_jepa_target(c, args.jepa_feats, hidden.device)
-                          for c in batch["clip_ids"]], 0)      # [B,21,30,52,1408]
-        h5 = hidden.float().reshape(B, *WD.WAN_GRID, -1)
-        p = projector(h5)                                      # [B,21,30,52,1408]
+                          for c in batch["clip_ids"]], 0)      # [B,21,15,26,1408] (run-2 grid)
+        h5 = WD.pool_hidden_spatial(hidden)                    # [B,21,15,26,1536] (shared 2x2 spatial avg-pool)
+        p = projector(h5)                                      # [B,21,15,26,1408]
         proj_shape, tgt_shape = tuple(p.shape), tuple(tg.shape)
         if proj_shape != tgt_shape:
             shape_ok = False

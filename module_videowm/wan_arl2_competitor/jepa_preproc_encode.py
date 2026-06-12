@@ -9,10 +9,15 @@ Why these choices (see JEPA_LOSS_NOTES.md):
     out-of-train-resolution input; spatial alignment with Wan is then 1:1 (no spatial interpolation needed).
   * Temporal: uniformly subsample the 81 decoded frames -> 64 (the encoder's native num_frames) so the temporal
     RoPE stays IN-distribution (64 frames / tubelet 2 = 32 tubelets). We then mean-pool the 32 tubelets into
-    T_VJEPA temporal groups (coarse start..end dynamics anchors) before storing, to fit disk.
-  * Storage: [T_VJEPA, 30, 52, 1408] fp16 per clip. T_VJEPA=2 -> 8.78 MB/clip -> ~52.7 GB for 6000 clips.
-    (dim=1408 is fixed by the giant encoder and 30x52 is required to match Wan, so T_VJEPA is the only knob;
-     T_VJEPA=2 keeps coarse temporal/dynamics signal while fitting the ~113 GB free disk with headroom.)
+    T_VJEPA temporal groups (start..end dynamics anchors) before storing, to fit disk.
+  * Spatial: after encoding at the full 30x52 patch grid, AVG-POOL 2x2 -> 15x26 before storing. This trades
+    a little spatial resolution for 4x temporal headroom on disk, letting us raise T_VJEPA to 8. The Wan DiT
+    hidden is pooled the SAME 2x2 way in the REPA loss, so spatial alignment stays 1:1 at the 15x26 grid.
+  * Storage: [T_VJEPA, 15, 26, 1408] fp16 per clip. T_VJEPA=8 -> 8.79 MB/clip -> ~52.7 GB for 6000 clips
+    (8*15*26 == 2*30*52, so T=8@15x26 costs the SAME disk as the old T=2@30x52 — but 4x the temporal slices).
+    RUN-2 FIX: run-1 used T_VJEPA=2 @ full 30x52; interpolating 2->21 made the target temporally SMOOTH, which
+    pushed the student's per-frame features alike across time and SUPPRESSED motion (VBench dynamic_degree -5.55).
+    More temporal slices (T=8) keep the target's frame-to-frame variation so motion is no longer suppressed.
     The REPA loss later F.interpolate's the stored T_VJEPA -> 21 (Wan's frame count) on the time axis only.
 
 2-GPU sharded:  CUDA_VISIBLE_DEVICES=0 python jepa_preproc_encode.py 0 2   (and `1 2` on the other GPU).
@@ -32,9 +37,11 @@ CKPT = "/home/.cache/torch/hub/checkpoints/vjepa2-ac-vitg.pt"   # full AC ckpt; 
 IMAGENET_MEAN = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1, 1)
 IMAGENET_STD = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1, 1)
 NUM_FRAMES = int(os.environ.get("JEPA_NUM_FRAMES", 64))   # encoder native temporal length (64 -> 32 tubelets)
-T_VJEPA = int(os.environ.get("JEPA_T", 2))                # stored temporal groups (mean-pool of the tubelets)
+T_VJEPA = int(os.environ.get("JEPA_T", 8))                # stored temporal groups (mean-pool of the tubelets); run-2: 8
 H, W = 480, 832        # full res -> 30x52 patch grid == Wan spatial grid
 GRID_H, GRID_W = H // 16, W // 16   # 30, 52
+POOL = int(os.environ.get("JEPA_SPATIAL_POOL", 2))        # spatial 2x2 avg-pool of the patch grid: 30x52 -> 15x26
+POOL_H, POOL_W = GRID_H // POOL, GRID_W // POOL            # 15, 26 (Wan DiT hidden pooled the same way in the loss)
 
 
 def ts():
@@ -75,14 +82,17 @@ def read_clip(path):
 
 @torch.inference_mode()
 def encode(enc, v, device):
-    """[1,3,64,480,832] -> stored target [T_VJEPA,30,52,1408] fp16 (cpu)."""
+    """[1,3,64,480,832] -> stored target [T_VJEPA,15,26,1408] fp16 (cpu).
+    Pipeline: ViT-g encode @30x52 -> spatial 2x2 avg-pool to 15x26 -> temporal mean-pool 32 tubelets -> T_VJEPA."""
     z = enc(v.to(device, torch.bfloat16))                    # [1, 32*30*52, 1408]
     N = z.shape[1]
     Tt = N // (GRID_H * GRID_W)
     assert Tt * GRID_H * GRID_W == N, f"token count {N} not divisible by {GRID_H}x{GRID_W}"
     z = z.reshape(Tt, GRID_H, GRID_W, -1).float()            # [32,30,52,1408] (T,H,W row-major == Wan order)
+    # spatial 2x2 avg-pool: [Tt,30,52,D] -> [Tt,15,26,D] (same pooling applied to the Wan hidden in repa_align_loss)
+    z = F.avg_pool2d(z.permute(0, 3, 1, 2), kernel_size=POOL, stride=POOL).permute(0, 2, 3, 1).contiguous()
     assert Tt % T_VJEPA == 0, f"tubelets {Tt} not divisible by T_VJEPA {T_VJEPA}"
-    pooled = z.reshape(T_VJEPA, Tt // T_VJEPA, GRID_H, GRID_W, z.shape[-1]).mean(1)   # [T_VJEPA,30,52,1408]
+    pooled = z.reshape(T_VJEPA, Tt // T_VJEPA, POOL_H, POOL_W, z.shape[-1]).mean(1)   # [T_VJEPA,15,26,1408]
     return pooled.half().contiguous().cpu()
 
 
