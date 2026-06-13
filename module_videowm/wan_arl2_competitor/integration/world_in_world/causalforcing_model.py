@@ -49,6 +49,20 @@ for _p in (CF_DIR, EXT_DIR):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+# Causal-Forcing's `utils` is a NAMESPACE package (no __init__.py). world-in-world ships a
+# REGULAR `utils` package (with __init__.py) which ALWAYS wins the import regardless of
+# sys.path order. When the WM manager launches this worker it sets PYTHONPATH=. (the
+# world-in-world root), so `from utils.wan_wrapper import ...` inside CF would resolve to
+# world-in-world's `utils` and fail. Drop every sys.path entry that provides a regular
+# top-level `utils` package BEFORE importing CF's pipeline; re-add world-in-world below.
+_removed_wiw_roots = [
+    _p for _p in list(sys.path)
+    if _p and osp.isfile(osp.join(_p, "utils", "__init__.py"))
+]
+for _p in _removed_wiw_roots:
+    while _p in sys.path:
+        sys.path.remove(_p)
+
 import torch
 import numpy as np
 from PIL import Image
