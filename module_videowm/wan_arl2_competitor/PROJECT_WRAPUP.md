@@ -42,20 +42,33 @@
 | teacher(Causal Forcing) | **88.09** | |
 | 75% KDA+AttnRes(S2 3k) | 83.48 | KDA 流式态 bug 修复后(修复值 +15.35) |
 | + 补训(9k total) | 83.84 | 预算杠杆耗尽证明(+0.36,全在 dynamic) |
-| + §3a JEPA T=2(run-1) | 83.90 | 净平;**空间 4 维 +5.8 ✓,dynamic −5.55 ✗(T=2 病)** |
+| + §3a JEPA T=2(run-1) | 83.90 | 净平;空间 4 维 +5.8 ✓,dynamic −5.55 ✗(T=2 病) |
+| **+ §3a JEPA T=8(run-2, FINAL)** | **84.00** | **最终 headline;空间 subject/imaging +1.9 ✓,dynamic −4.17(REPA 本质抑制动态,T=8 仅救回 +1.39)** |
 | ARL²(GDN, 自报) | 86.71 | 软参照:无 code/data/lr/loss,不可复现 |
 
 - 已证:① loss floor(0.065)与质量弱耦合,补训/重退火无用;② ARL² 的唯一 recipe 差异是调度完整性,
-  lr 论文不公布;③ REPA 式对齐在线性化蒸馏上**方法有效**(空间证据干净),T 配置是瓶颈;
+  lr 论文不公布;③ REPA 式对齐在线性化蒸馏上**方法有效但与动态有张力**:空间稳定 +1.9,代价是 dynamic_degree
+  系统性下降(对齐"平滑 latent 轨迹"的归纳偏置压制运动),T 分辨率只能部分缓解 → 净 +0.16 边际胜;
 - 两类 KDA 推理态 bug(WorldVLA decode-cache、Wan streaming-state)→ **纪律:先验证推理递归态再信指标**。
 
-## 2. 收尾执行(user-locked: 只做 1-3,overnight 监测)
+#### ⑥-eff 效率结论(诚实负结果,见 _ext/wan_eval/EFFICIENCY_FINDINGS.md)
+- **全序列前向**:KDA 1.16–1.49× 快、**显存持平**,F>41 两者皆 OOM(flex_attention 本就省显存,且到不了长序列)。
+- **streaming 部署路径(真卖点测试)**:F=21 原生长度 KDA 学生 **慢 2.5×(6.33s vs 2.50s)、重 2.4×(50.2 vs 20.8GB)**;
+  且 `local_attn_size=-1` → KV-cache 21 帧硬上限无滚动,F=41 越界崩溃,进不了长序列区间。
+- **根因**:Causal Forcing 本身是有界 21 帧注意力,softmax 在该长度已便宜,KDA-chunk + 朴素 AttnRes(4 taps)+ LoRA
+  算子开销成净亏损;线性化的"线性 vs 二次"win 只存在于无界长序列(此教师不进入)→ **ARL² 2.26×/54% 在此教师上不可复现**。
+- → 本工作可辩护贡献 = **质量(84.0 不坍塌)+ REPA-线性化数据点 + 两个 KDA 推理 bug 修复**,而非效率。
 
-1. **run-2 §3a T=8**(在跑,~16h):V-JEPA2 重编码 [8,15,26,1408](53G,盘 82G 够)→ smoke → S2 重训
-   (jepa_l025_T8/)→ VBench。**判据:dynamic 恢复(不再 −5.55)且保住空间 +5.8 → 预计 85-86。**
-2. **效率 F-sweep**(run-2 后):81→165→501→921f 速度/显存 vs softmax teacher。**真卖点**
-   (KDA 定长 state + AttnRes 长度泛化:训 81f 跑 921f 不重训),对标 ARL² 2.26×/54%。
-3. **WorldVLA conthead 开环 eval**(F-sweep 后):公平协议,vs teacher 59% / 离散 0%。
+## 2. 收尾执行结果(user-locked: 只做 1-3)
+
+1. **run-2 §3a T=8 — 完成 ✓**:V-JEPA2 重编码 [8,15,26,1408]→ smoke → S2 重训(jepa_l025_T8/)→ VBench。
+   结果 **Quality 84.00**:dynamic 从 T2 的 77.78 救回 79.17(+1.39)但仍 −4.17 vs MSE;空间保住 +1.9。
+   判据部分达成(dynamic 部分恢复,未到 85-86)→ REPA 与动态张力是方法本质,非配置问题。ckpt 已 commit。
+2. **效率 F-sweep — 完成,诚实负结果**:见上 ⑥-eff。全序列 1.16–1.49×/显存持平;streaming F=21 学生慢 2.5×/重 2.4×;
+   `local_attn=-1` 21 帧硬上限进不了长序列。**结论:此有界注意力教师上线性化不赢效率**(代码+数据已 commit)。
+3. **WorldVLA conthead 开环 eval — 已启动,部分**:CONT_NCHUNKS=25 开环,2-GPU sharded(HALF2@GPU1 + HALF1@GPU0)。
+   rendering-bound(osmesa CPU,分钟/集),机器释放窗口内仅跑完部分;按 mp4 文件名聚合 partial success(填见下)。
+   完整 250 集/shard 需数小时,**留 pending**(启动器 commit d9a988c,可直接续跑)。
 
 ## 3. 未来 wins(写进 future work,不在本次收尾)
 

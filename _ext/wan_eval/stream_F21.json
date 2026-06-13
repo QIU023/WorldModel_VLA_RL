@@ -1,0 +1,6 @@
+{
+  "note": "streaming AR deployment path, F=21 native length; sweep crashed at F=41 due to local_attn=-1 21-frame KV-cache hard cap (no rolling window)",
+  "teacher": {"latent_F": 21, "px_F": 81, "gen_s": 2.50, "per_frame_ms": 119.1, "first_chunk_s": 0.14, "peak_GB": 20.8},
+  "student": {"latent_F": 21, "px_F": 81, "gen_s": 6.33, "per_frame_ms": 301.7, "first_chunk_s": 0.34, "peak_GB": 50.2},
+  "verdict": "KDA student 2.5x SLOWER + 2.4x heavier at native length; operator overhead (AttnRes+LoRA+chunk_kda) exceeds cheap bounded-softmax cost"
+}
