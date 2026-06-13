@@ -1,0 +1,41 @@
+diff --git a/train/verl/verl/workers/fsdp_workers.py b/train/verl/verl/workers/fsdp_workers.py
+index 922bfc6..305fc39 100644
+--- a/train/verl/verl/workers/fsdp_workers.py
++++ b/train/verl/verl/workers/fsdp_workers.py
+@@ -878,9 +878,12 @@ class WorldModelRolloutWorker(Worker):
+         rollout_device_mesh = init_device_mesh('cuda', mesh_shape=(dp, infer_tp), mesh_dim_names=['dp', 'infer_tp'])
+         rollout_name = self.config.rollout.name
+         if rollout_name == 'hf':
+-            from verl.workers.rollout import HFRollout
++            # NOTE: the world model uses a dedicated HF *interact* rollout (KDA-compatible),
++            # NOT the policy-action HFRollout (which needs action_head/proprio/etc.). This is
++            # the path to use for a KDA-linearised world model, which cannot run on vLLM.
++            from verl.workers.rollout.hf_world_model_rollout import HFWorldModelRollout
+             from verl.workers.sharding_manager import BaseShardingManager
+-            rollout = HFRollout(module=self.world_module_fsdp, config=self.config.rollout)
++            rollout = HFWorldModelRollout(world_module=self.world_module_fsdp, config=self.config.rollout)
+             rollout_sharding_manager = BaseShardingManager()
+             # TODO: a sharding manager that do nothing?
+ 
+@@ -995,6 +998,21 @@ class WorldModelRolloutWorker(Worker):
+             # some parameters may not in torch_dtype. TODO(zhangchi.usc1992) remove this after we switch to fsdp2
+             world_module.to(torch_dtype)
+ 
++            # === KDA/AttnRes world-model surgery (integration hook) =========================
++            # Linearise the WM LLaMA backbone in place BEFORE the FSDP wrap below, gated by
++            # config flags under world_model_rollout.world_model:
++            #   attn_type ('softmax'|'kda'), kda_layers, init_from_softmax, attnres_groups.
++            # No-op when attn_type='softmax' (default) -> stock VLA-RFT behaviour preserved.
++            try:
++                from verl.workers.rollout.wm_kda_surgery import apply_wm_kda_surgery
++            except Exception:
++                # fallback to the standalone integration copy if not vendored into verl
++                import sys as _sys
++                _sys.path.insert(0, '/home/wm-vla-rl/module_videowm/wan_arl2_competitor/integration/vla_rft')
++                from wm_kda_surgery import apply_wm_kda_surgery
++            apply_wm_kda_surgery(world_module, self.config.world_model, rank=self.rank)
++            # ===============================================================================
++
+             if enable_gradient_checkpointing:
+                 world_module.gradient_checkpointing_enable(gradient_checkpointing_kwargs={'use_reentrant': False})
+         torch.distributed.barrier()

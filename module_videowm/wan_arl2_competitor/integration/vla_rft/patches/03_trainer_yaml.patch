@@ -1,0 +1,26 @@
+diff --git a/train/verl/verl/trainer/config/vla_rft_grpo_trainer.yaml b/train/verl/verl/trainer/config/vla_rft_grpo_trainer.yaml
+index 71d30a7..f306917 100644
+--- a/train/verl/verl/trainer/config/vla_rft_grpo_trainer.yaml
++++ b/train/verl/verl/trainer/config/vla_rft_grpo_trainer.yaml
+@@ -186,6 +186,11 @@ world_model_rollout:
+     interact: False
+     strategy: fsdp  # This is for backward-compatibility
+     vocab_size: 9008
++    # --- KDA / AttnRes world-model surgery (integration hook, fsdp_workers.py) ---
++    attn_type: softmax        # 'softmax' (default, no-op) | 'kda' (linearise WM backbone)
++    kda_layers: null          # null=all (pure-KDA) | int N=Kimi N:1 hybrid | list of layer idxs
++    init_from_softmax: True   # attention-surgery: copy pretrained q/k/v/o into KDA at init
++    attnres_groups: 0         # 0=off | >0 cross-layer Block-AttnRes with that many groups
+     ppo_mini_batch_size: 256
+     ppo_micro_batch_size: null # will be deprecated, use ppo_micro_batch_size_per_gpu
+     ppo_micro_batch_size_per_gpu: null
+@@ -236,6 +241,9 @@ world_model_rollout:
+     n: 1 # > 1 for grpo
+     interact: False
+     interact_max_tokens: 80
++    # --- HFWorldModelRollout (set rollout.name=hf for a KDA world model) ---
++    hf_recurrent: False  # True = manual O(N) recurrent decode (threads KDA _kda_state, no re-prefill)
++    hf_gt_grows: False   # gt-action rollout: False=mirror vLLM (regen from prompt) | True=autoregressive
+     val_kwargs:
+       # sampling parameters for validation
+       top_k: 100 

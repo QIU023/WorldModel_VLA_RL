@@ -1,0 +1,12 @@
+diff --git a/train/verl/verl/workers/rollout/__init__.py b/train/verl/verl/workers/rollout/__init__.py
+index 083848c..7d08c64 100644
+--- a/train/verl/verl/workers/rollout/__init__.py
++++ b/train/verl/verl/workers/rollout/__init__.py
+@@ -15,5 +15,6 @@
+ from .base import BaseRollout
+ from .naive import NaiveRollout
+ from .hf_rollout import HFRollout
++from .hf_world_model_rollout import HFWorldModelRollout
+ 
+-__all__ = ["BaseRollout", "NaiveRollout", "HFRollout"]
++__all__ = ["BaseRollout", "NaiveRollout", "HFRollout", "HFWorldModelRollout"]
