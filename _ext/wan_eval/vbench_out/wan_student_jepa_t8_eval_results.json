@@ -1,0 +1,2461 @@
+{
+    "subject_consistency": [
+        0.9088405122165568,
+        [
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person swimming in ocean-0.mp4",
+                "video_results": 0.9550419747829437
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person giving a presentation to a room full of colleagues-0.mp4",
+                "video_results": 0.9272530999034643
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person washing the dishes-0.mp4",
+                "video_results": 0.8683281321078539
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person eating a burger-0.mp4",
+                "video_results": 0.8588496197015048
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person walking in the snowstorm-0.mp4",
+                "video_results": 0.8613112619146704
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person drinking coffee in a cafe-0.mp4",
+                "video_results": 0.9426885567605495
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person playing guitar-0.mp4",
+                "video_results": 0.9797065645456314
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bicycle leaning against a tree-0.mp4",
+                "video_results": 0.9238846156746149
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bicycle gliding through a snowy field-0.mp4",
+                "video_results": 0.9220189366489648
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bicycle slowing down to stop-0.mp4",
+                "video_results": 0.9017084777355194
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bicycle accelerating to gain speed-0.mp4",
+                "video_results": 0.9596677608788013
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a car stuck in traffic during rush hour-0.mp4",
+                "video_results": 0.9542950216680766
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a car turning a corner-0.mp4",
+                "video_results": 0.9074998445808887
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a car slowing down to stop-0.mp4",
+                "video_results": 0.9626522894948721
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a car accelerating to gain speed-0.mp4",
+                "video_results": 0.9457442551851273
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a motorcycle cruising along a coastal highway-0.mp4",
+                "video_results": 0.879128186404705
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a motorcycle turning a corner-0.mp4",
+                "video_results": 0.9294306121766567
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a motorcycle slowing down to stop-0.mp4",
+                "video_results": 0.9206246089190244
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a motorcycle gliding through a snowy field-0.mp4",
+                "video_results": 0.8784946590662003
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a motorcycle accelerating to gain speed-0.mp4",
+                "video_results": 0.9154852528125048
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an airplane soaring through a clear blue sky-0.mp4",
+                "video_results": 0.9284030716866255
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an airplane taking off-0.mp4",
+                "video_results": 0.9607344817370176
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an airplane landing smoothly on a runway-0.mp4",
+                "video_results": 0.9554984170943499
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an airplane accelerating to gain speed-0.mp4",
+                "video_results": 0.9578012835234404
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bus turning a corner-0.mp4",
+                "video_results": 0.8919925224035978
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bus stuck in traffic during rush hour-0.mp4",
+                "video_results": 0.8770686272531748
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bus accelerating to gain speed-0.mp4",
+                "video_results": 0.8377341514453291
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a train speeding down the tracks-0.mp4",
+                "video_results": 0.9100980676710606
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a train crossing over a tall bridge-0.mp4",
+                "video_results": 0.8670124124735594
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a train accelerating to gain speed-0.mp4",
+                "video_results": 0.8190684966742993
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a truck turning a corner-0.mp4",
+                "video_results": 0.8761171527206898
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a truck anchored in a tranquil bay-0.mp4",
+                "video_results": 0.8970047336071729
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a truck stuck in traffic during rush hour-0.mp4",
+                "video_results": 0.9258502062410117
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a truck slowing down to stop-0.mp4",
+                "video_results": 0.949393143877387
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a truck accelerating to gain speed-0.mp4",
+                "video_results": 0.9128986772149801
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a boat sailing smoothly on a calm lake-0.mp4",
+                "video_results": 0.8887942001223564
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a boat slowing down to stop-0.mp4",
+                "video_results": 0.8745114378631115
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a boat accelerating to gain speed-0.mp4",
+                "video_results": 0.8834943734109402
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bird soaring gracefully in the sky-0.mp4",
+                "video_results": 0.8139355838298797
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bird building a nest from twigs and leaves-0.mp4",
+                "video_results": 0.8689203124493361
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bird flying over a snowy forest-0.mp4",
+                "video_results": 0.8349783767014742
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cat grooming itself meticulously with its tongue-0.mp4",
+                "video_results": 0.9540835741907359
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cat playing in park-0.mp4",
+                "video_results": 0.9513233985751868
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cat drinking water-0.mp4",
+                "video_results": 0.9643279846757651
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cat running happily-0.mp4",
+                "video_results": 0.9635784838348627
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a dog enjoying a peaceful walk-0.mp4",
+                "video_results": 0.932573190331459
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a dog playing in park-0.mp4",
+                "video_results": 0.8974499549716711
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a dog drinking water-0.mp4",
+                "video_results": 0.8899964731186628
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a dog running happily-0.mp4",
+                "video_results": 0.9271288041025401
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a horse bending down to drink water from a river-0.mp4",
+                "video_results": 0.8467779202386737
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a horse galloping across an open field-0.mp4",
+                "video_results": 0.8756689044646919
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a horse taking a peaceful walk-0.mp4",
+                "video_results": 0.9490212474018336
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a horse running to join a herd of its kind-0.mp4",
+                "video_results": 0.9528109412640333
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a sheep bending down to drink water from a river-0.mp4",
+                "video_results": 0.8651746269315481
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a sheep taking a peaceful walk-0.mp4",
+                "video_results": 0.85265987906605
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a sheep running to join a herd of its kind-0.mp4",
+                "video_results": 0.9011959340423346
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cow bending down to drink water from a river-0.mp4",
+                "video_results": 0.9020884174853563
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cow chewing cud while resting in a tranquil barn-0.mp4",
+                "video_results": 0.9309418849647045
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cow running to join a herd of its kind-0.mp4",
+                "video_results": 0.9400076445192098
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an elephant spraying itself with water using its trunk to cool down-0.mp4",
+                "video_results": 0.9364826682955026
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an elephant taking a peaceful walk-0.mp4",
+                "video_results": 0.9433564256876708
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an elephant running to join a herd of its kind-0.mp4",
+                "video_results": 0.9551098383963108
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bear catching a salmon in its powerful jaws-0.mp4",
+                "video_results": 0.9130355659872293
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bear sniffing the air for scents of food-0.mp4",
+                "video_results": 0.918805343285203
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bear climbing a tree-0.mp4",
+                "video_results": 0.8470687784254551
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bear hunting for prey-0.mp4",
+                "video_results": 0.8924283092841506
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a zebra bending down to drink water from a river-0.mp4",
+                "video_results": 0.9208189029246568
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a zebra running to join a herd of its kind-0.mp4",
+                "video_results": 0.939931707456708
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a zebra taking a peaceful walk-0.mp4",
+                "video_results": 0.944889335334301
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a giraffe bending down to drink water from a river-0.mp4",
+                "video_results": 0.8613260343670845
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a giraffe taking a peaceful walk-0.mp4",
+                "video_results": 0.8624109640717507
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a giraffe running to join a herd of its kind-0.mp4",
+                "video_results": 0.8789202809333801
+            }
+        ]
+    ],
+    "background_consistency": [
+        0.9236486390579578,
+        [
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/alley-0.mp4",
+                "video_results": 0.949530029296875,
+                "video_sim": 75.96240234375,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/amusement park-0.mp4",
+                "video_results": 0.9297943115234375,
+                "video_sim": 74.383544921875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/aquarium-0.mp4",
+                "video_results": 0.9451629638671875,
+                "video_sim": 75.613037109375,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/arch-0.mp4",
+                "video_results": 0.9433441162109375,
+                "video_sim": 75.467529296875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/art gallery-0.mp4",
+                "video_results": 0.95068359375,
+                "video_sim": 76.0546875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/bathroom-0.mp4",
+                "video_results": 0.9316986083984375,
+                "video_sim": 74.535888671875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/bakery shop-0.mp4",
+                "video_results": 0.9498870849609375,
+                "video_sim": 75.990966796875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/ballroom-0.mp4",
+                "video_results": 0.960321044921875,
+                "video_sim": 76.82568359375,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/bar-0.mp4",
+                "video_results": 0.9325653076171875,
+                "video_sim": 74.605224609375,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/barn-0.mp4",
+                "video_results": 0.9694854736328125,
+                "video_sim": 77.558837890625,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/basement-0.mp4",
+                "video_results": 0.9030303955078125,
+                "video_sim": 72.242431640625,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/beach-0.mp4",
+                "video_results": 0.94461669921875,
+                "video_sim": 75.5693359375,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/bedroom-0.mp4",
+                "video_results": 0.9623138427734375,
+                "video_sim": 76.985107421875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/bridge-0.mp4",
+                "video_results": 0.9564697265625,
+                "video_sim": 76.517578125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/botanical garden-0.mp4",
+                "video_results": 0.9173858642578125,
+                "video_sim": 73.390869140625,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/cafeteria-0.mp4",
+                "video_results": 0.9177001953125,
+                "video_sim": 73.416015625,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/campsite-0.mp4",
+                "video_results": 0.8948150634765625,
+                "video_sim": 71.585205078125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/campus-0.mp4",
+                "video_results": 0.894873046875,
+                "video_sim": 71.58984375,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/carrousel-0.mp4",
+                "video_results": 0.9098846435546875,
+                "video_sim": 72.790771484375,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/castle-0.mp4",
+                "video_results": 0.913287353515625,
+                "video_sim": 73.06298828125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/cemetery-0.mp4",
+                "video_results": 0.9022003173828125,
+                "video_sim": 72.176025390625,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/classroom-0.mp4",
+                "video_results": 0.9157470703125,
+                "video_sim": 73.259765625,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/cliff-0.mp4",
+                "video_results": 0.935980224609375,
+                "video_sim": 74.87841796875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/crosswalk-0.mp4",
+                "video_results": 0.8795806884765625,
+                "video_sim": 70.366455078125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/construction site-0.mp4",
+                "video_results": 0.8998077392578125,
+                "video_sim": 71.984619140625,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/corridor-0.mp4",
+                "video_results": 0.917767333984375,
+                "video_sim": 73.42138671875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/courtyard-0.mp4",
+                "video_results": 0.896337890625,
+                "video_sim": 71.70703125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/desert-0.mp4",
+                "video_results": 0.982757568359375,
+                "video_sim": 78.62060546875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/downtown-0.mp4",
+                "video_results": 0.90460205078125,
+                "video_sim": 72.3681640625,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/driveway-0.mp4",
+                "video_results": 0.85216064453125,
+                "video_sim": 68.1728515625,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/farm-0.mp4",
+                "video_results": 0.91151123046875,
+                "video_sim": 72.9208984375,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/food court-0.mp4",
+                "video_results": 0.85428466796875,
+                "video_sim": 68.3427734375,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/football field-0.mp4",
+                "video_results": 0.8997894287109375,
+                "video_sim": 71.983154296875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/forest road-0.mp4",
+                "video_results": 0.9717620849609375,
+                "video_sim": 77.740966796875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/fountain-0.mp4",
+                "video_results": 0.90343017578125,
+                "video_sim": 72.2744140625,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/gas station-0.mp4",
+                "video_results": 0.926092529296875,
+                "video_sim": 74.08740234375,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/glacier-0.mp4",
+                "video_results": 0.9274383544921875,
+                "video_sim": 74.195068359375,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/golf course-0.mp4",
+                "video_results": 0.964697265625,
+                "video_sim": 77.17578125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/indoor gymnasium-0.mp4",
+                "video_results": 0.93736572265625,
+                "video_sim": 74.9892578125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/harbor-0.mp4",
+                "video_results": 0.9000213623046875,
+                "video_sim": 72.001708984375,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/highway-0.mp4",
+                "video_results": 0.9277923583984375,
+                "video_sim": 74.223388671875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/hospital-0.mp4",
+                "video_results": 0.9332275390625,
+                "video_sim": 74.658203125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/house-0.mp4",
+                "video_results": 0.945556640625,
+                "video_sim": 75.64453125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/iceberg-0.mp4",
+                "video_results": 0.97239990234375,
+                "video_sim": 77.7919921875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/industrial area-0.mp4",
+                "video_results": 0.8719329833984375,
+                "video_sim": 69.754638671875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/jail cell-0.mp4",
+                "video_results": 0.9141571044921875,
+                "video_sim": 73.132568359375,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/junkyard-0.mp4",
+                "video_results": 0.929010009765625,
+                "video_sim": 74.32080078125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/kitchen-0.mp4",
+                "video_results": 0.9394866943359375,
+                "video_sim": 75.158935546875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/indoor library-0.mp4",
+                "video_results": 0.95648193359375,
+                "video_sim": 76.5185546875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/lighthouse-0.mp4",
+                "video_results": 0.9297210693359375,
+                "video_sim": 74.377685546875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/laboratory-0.mp4",
+                "video_results": 0.948712158203125,
+                "video_sim": 75.89697265625,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/mansion-0.mp4",
+                "video_results": 0.9116607666015625,
+                "video_sim": 72.932861328125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/marsh-0.mp4",
+                "video_results": 0.948187255859375,
+                "video_sim": 75.85498046875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/mountain-0.mp4",
+                "video_results": 0.9210113525390625,
+                "video_sim": 73.680908203125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/indoor movie theater-0.mp4",
+                "video_results": 0.955084228515625,
+                "video_sim": 76.40673828125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/indoor museum-0.mp4",
+                "video_results": 0.920489501953125,
+                "video_sim": 73.63916015625,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/music studio-0.mp4",
+                "video_results": 0.9319000244140625,
+                "video_sim": 74.552001953125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/nursery-0.mp4",
+                "video_results": 0.919036865234375,
+                "video_sim": 73.52294921875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/ocean-0.mp4",
+                "video_results": 0.9356353759765625,
+                "video_sim": 74.850830078125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/office-0.mp4",
+                "video_results": 0.87901611328125,
+                "video_sim": 70.3212890625,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/palace-0.mp4",
+                "video_results": 0.9265960693359375,
+                "video_sim": 74.127685546875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/parking lot-0.mp4",
+                "video_results": 0.921575927734375,
+                "video_sim": 73.72607421875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/pharmacy-0.mp4",
+                "video_results": 0.9339630126953125,
+                "video_sim": 74.717041015625,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/phone booth-0.mp4",
+                "video_results": 0.9590087890625,
+                "video_sim": 76.720703125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/raceway-0.mp4",
+                "video_results": 0.934613037109375,
+                "video_sim": 74.76904296875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/restaurant-0.mp4",
+                "video_results": 0.9317718505859375,
+                "video_sim": 74.541748046875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/river-0.mp4",
+                "video_results": 0.9158355712890625,
+                "video_sim": 73.266845703125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/science museum-0.mp4",
+                "video_results": 0.9452484130859375,
+                "video_sim": 75.619873046875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/shower-0.mp4",
+                "video_results": 0.9285430908203125,
+                "video_sim": 74.283447265625,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/ski slope-0.mp4",
+                "video_results": 0.9453521728515625,
+                "video_sim": 75.628173828125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/sky-0.mp4",
+                "video_results": 0.893792724609375,
+                "video_sim": 71.50341796875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/skyscraper-0.mp4",
+                "video_results": 0.895263671875,
+                "video_sim": 71.62109375,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/baseball stadium-0.mp4",
+                "video_results": 0.8912628173828125,
+                "video_sim": 71.301025390625,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/staircase-0.mp4",
+                "video_results": 0.929180908203125,
+                "video_sim": 74.33447265625,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/street-0.mp4",
+                "video_results": 0.90174560546875,
+                "video_sim": 72.1396484375,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/supermarket-0.mp4",
+                "video_results": 0.93387451171875,
+                "video_sim": 74.7099609375,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/indoor swimming pool-0.mp4",
+                "video_results": 0.900518798828125,
+                "video_sim": 72.04150390625,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/tower-0.mp4",
+                "video_results": 0.889697265625,
+                "video_sim": 71.17578125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/outdoor track-0.mp4",
+                "video_results": 0.875433349609375,
+                "video_sim": 70.03466796875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/train railway-0.mp4",
+                "video_results": 0.9318115234375,
+                "video_sim": 74.544921875,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/train station platform-0.mp4",
+                "video_results": 0.9287628173828125,
+                "video_sim": 74.301025390625,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/underwater coral reef-0.mp4",
+                "video_results": 0.963092041015625,
+                "video_sim": 77.04736328125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/valley-0.mp4",
+                "video_results": 0.8978485107421875,
+                "video_sim": 71.827880859375,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/volcano-0.mp4",
+                "video_results": 0.8912811279296875,
+                "video_sim": 71.302490234375,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/waterfall-0.mp4",
+                "video_results": 0.9412994384765625,
+                "video_sim": 75.303955078125,
+                "cnt_per_video": 80
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/windmill-0.mp4",
+                "video_results": 0.875726318359375,
+                "video_sim": 70.05810546875,
+                "cnt_per_video": 80
+            }
+        ]
+    ],
+    "temporal_flickering": [
+        0.9533199438830604,
+        [
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, a stop sign-0.mp4",
+                "video_results": 0.9767080307006836
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a toilet, frozen in time-0.mp4",
+                "video_results": 0.9782587481480018
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a laptop, frozen in time-0.mp4",
+                "video_results": 0.9763526523814482
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of alley-0.mp4",
+                "video_results": 0.942937203949573
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of bar-0.mp4",
+                "video_results": 0.9462117438222848
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of barn-0.mp4",
+                "video_results": 0.9533537247601678
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of bathroom-0.mp4",
+                "video_results": 0.9590069789512484
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of bedroom-0.mp4",
+                "video_results": 0.9815486627466539
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of cliff-0.mp4",
+                "video_results": 0.95973326365153
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, courtyard-0.mp4",
+                "video_results": 0.960252690782734
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, gas station-0.mp4",
+                "video_results": 0.931057731778014
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of house-0.mp4",
+                "video_results": 0.9484766417858648
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/indoor gymnasium, frozen in time-0.mp4",
+                "video_results": 0.9652394537832223
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of indoor library-0.mp4",
+                "video_results": 0.9367983200970817
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of kitchen-0.mp4",
+                "video_results": 0.9692102581846948
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of palace-0.mp4",
+                "video_results": 0.9424202488917931
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, parking lot-0.mp4",
+                "video_results": 0.9423678641225778
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, phone booth-0.mp4",
+                "video_results": 0.9445860133451573
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of restaurant-0.mp4",
+                "video_results": 0.960488899081361
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of tower-0.mp4",
+                "video_results": 0.9644318524528952
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of a bowl-0.mp4",
+                "video_results": 0.9787407482371611
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of an apple-0.mp4",
+                "video_results": 0.9801566928040748
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of a bench-0.mp4",
+                "video_results": 0.9611731211344401
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of a bed-0.mp4",
+                "video_results": 0.9618714388679056
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of a chair-0.mp4",
+                "video_results": 0.9678209080415614
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of a cup-0.mp4",
+                "video_results": 0.9805960599113913
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of a dining table-0.mp4",
+                "video_results": 0.955373244192086
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, a pear-0.mp4",
+                "video_results": 0.971329195359174
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of a bunch of grapes-0.mp4",
+                "video_results": 0.9578005510218003
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of a bowl on the kitchen counter-0.mp4",
+                "video_results": 0.9692633928037158
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of a beautiful, handcrafted ceramic bowl-0.mp4",
+                "video_results": 0.9638536827236999
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of an antique bowl-0.mp4",
+                "video_results": 0.9881467940760594
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of an exquisite mahogany dining table-0.mp4",
+                "video_results": 0.9764171319849351
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of a wooden bench in the park-0.mp4",
+                "video_results": 0.938733257966883
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of a beautiful wrought-iron bench surrounded by blooming flowers-0.mp4",
+                "video_results": 0.9310004290412454
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, a park bench with a view of the lake-0.mp4",
+                "video_results": 0.945661455042222
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of a vintage rocking chair was placed on the porch-0.mp4",
+                "video_results": 0.9317767872529872
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of the jail cell was small and dimly lit, with cold, steel bars-0.mp4",
+                "video_results": 0.958308448043524
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of the phone booth was tucked away in a quiet alley-0.mp4",
+                "video_results": 0.9248116437126609
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a dilapidated phone booth stood as a relic of a bygone era on the sidewalk, frozen in time-0.mp4",
+                "video_results": 0.9250201730167165
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of the old red barn stood weathered and iconic against the backdrop of the countryside-0.mp4",
+                "video_results": 0.9525978387570848
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of a picturesque barn was painted a warm shade of red and nestled in a picturesque meadow-0.mp4",
+                "video_results": 0.9485796086928424
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, within the desolate desert, an oasis unfolded, characterized by the stoic presence of palm trees and a motionless, glassy pool of water-0.mp4",
+                "video_results": 0.9671975790285596
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, the Parthenon's majestic Doric columns stand in serene solitude atop the Acropolis, framed by the tranquil Athenian landscape-0.mp4",
+                "video_results": 0.9436029060214174
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, the Temple of Hephaestus, with its timeless Doric grace, stands stoically against the backdrop of a quiet Athens-0.mp4",
+                "video_results": 0.9303185706045113
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, the ornate Victorian streetlamp stands solemnly, adorned with intricate ironwork and stained glass panels-0.mp4",
+                "video_results": 0.9548853780709061
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of the Stonehenge presented itself as an enigmatic puzzle, each colossal stone meticulously placed against the backdrop of tranquility-0.mp4",
+                "video_results": 0.9636238060745539
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, in the vast desert, an oasis nestled among dunes, featuring tall palm trees and an air of serenity-0.mp4",
+                "video_results": 0.9680907978731044
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/static view on a desert scene with an oasis, palm trees, and a clear, calm pool of water-0.mp4",
+                "video_results": 0.967921350516525
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of an ornate Victorian streetlamp standing on a cobblestone street corner, illuminating the empty night-0.mp4",
+                "video_results": 0.9695188597136852
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of a tranquil lakeside cabin nestled among tall pines, its reflection mirrored perfectly in the calm water-0.mp4",
+                "video_results": 0.944347463869581
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, a vintage gas lantern, adorned with intricate details, gracing a historic cobblestone square-0.mp4",
+                "video_results": 0.9514337352677887
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, a tranquil Japanese tea ceremony room, with tatami mats, a delicate tea set, and a bonsai tree in the corner-0.mp4",
+                "video_results": 0.9434343824199601
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of the Parthenon stands resolute in its classical elegance, a timeless symbol of Athens' cultural legacy-0.mp4",
+                "video_results": 0.9482823315788718
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of in the heart of Plaka, the neoclassical architecture of the old city harmonizes with the ancient ruins-0.mp4",
+                "video_results": 0.9440642936556947
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of in the desolate beauty of the American Southwest, Chaco Canyon's ancient ruins whispered tales of an enigmatic civilization that once thrived amidst the arid landscapes-0.mp4",
+                "video_results": 0.9602463666130515
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of at the edge of the Arabian Desert, the ancient city of Petra beckoned with its enigmatic rock-carved fa\u00e7ades-0.mp4",
+                "video_results": 0.9712038171057608
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, amidst the cobblestone streets, an Art Nouveau lamppost stood tall-0.mp4",
+                "video_results": 0.9187204622754863
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of in the quaint village square, a traditional wrought-iron streetlamp featured delicate filigree patterns and amber-hued glass panels-0.mp4",
+                "video_results": 0.9497993992824181
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of the lampposts were adorned with Art Deco motifs, their geometric shapes and frosted glass creating a sense of vintage glamour-0.mp4",
+                "video_results": 0.9665726194194719
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, in the picturesque square, a Gothic-style lamppost adorned with intricate stone carvings added a touch of medieval charm to the setting-0.mp4",
+                "video_results": 0.9400208940692977
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, in the heart of the old city, a row of ornate lantern-style streetlamps bathed the narrow alleyway in a warm, welcoming light-0.mp4",
+                "video_results": 0.9638505299886068
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of in the heart of the Utah desert, a massive sandstone arch spanned the horizon-0.mp4",
+                "video_results": 0.9595724966011795
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of in the Arizona desert, a massive stone bridge arched across a rugged canyon-0.mp4",
+                "video_results": 0.9325229046391506
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of in the corner of the minimalist tea room, a bonsai tree added a touch of nature's beauty to the otherwise simple and elegant space-0.mp4",
+                "video_results": 0.9624633564668543
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, amidst the hushed ambiance of the traditional tea room, a meticulously arranged tea set awaited, with porcelain cups, a bamboo whisk-0.mp4",
+                "video_results": 0.971513750038895
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, nestled in the Zen garden, a rustic teahouse featured tatami seating and a traditional charcoal brazier-0.mp4",
+                "video_results": 0.9342185375737209
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of a country estate's library featured elegant wooden shelves-0.mp4",
+                "video_results": 0.9553632923201019
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of beneath the shade of a solitary oak tree, an old wooden park bench sat patiently-0.mp4",
+                "video_results": 0.9297775941736558
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of beside a tranquil pond, a weeping willow tree draped its branches gracefully over the water's surface, creating a serene tableau of reflection and calm-0.mp4",
+                "video_results": 0.9214911965762868
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of in the Zen garden, a perfectly raked gravel path led to a serene rock garden-0.mp4",
+                "video_results": 0.9126419516170726
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, a tranquil pond was fringed by weeping cherry trees, their blossoms drifting lazily onto the glassy surface-0.mp4",
+                "video_results": 0.929944341322955
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/In a still frame, within the historic library's reading room, rows of antique leather chairs and mahogany tables offered a serene haven for literary contemplation-0.mp4",
+                "video_results": 0.9316600350772634
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of a peaceful orchid garden showcased a variety of delicate blooms-0.mp4",
+                "video_results": 0.9478298411649816
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tranquil tableau of in the serene courtyard, a centuries-old stone well stood as a symbol of a bygone era, its mossy stones bearing witness to the passage of time-0.mp4",
+                "video_results": 0.9343873641070197
+            }
+        ]
+    ],
+    "motion_smoothness": [
+        0.9720091717849686,
+        [
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person swimming in ocean-0.mp4",
+                "video_results": 0.9804934746902234
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person giving a presentation to a room full of colleagues-0.mp4",
+                "video_results": 0.9868695506765073
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person washing the dishes-0.mp4",
+                "video_results": 0.9807286214315454
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person eating a burger-0.mp4",
+                "video_results": 0.9826968449355571
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person walking in the snowstorm-0.mp4",
+                "video_results": 0.9776633495946455
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person drinking coffee in a cafe-0.mp4",
+                "video_results": 0.9801931533263679
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person playing guitar-0.mp4",
+                "video_results": 0.9720593270310929
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bicycle leaning against a tree-0.mp4",
+                "video_results": 0.9700410486026008
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bicycle gliding through a snowy field-0.mp4",
+                "video_results": 0.9590807660721207
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bicycle slowing down to stop-0.mp4",
+                "video_results": 0.9710694726758893
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bicycle accelerating to gain speed-0.mp4",
+                "video_results": 0.967233996289488
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a car stuck in traffic during rush hour-0.mp4",
+                "video_results": 0.9765764089373062
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a car turning a corner-0.mp4",
+                "video_results": 0.9729485860383149
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a car slowing down to stop-0.mp4",
+                "video_results": 0.96665103667502
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a car accelerating to gain speed-0.mp4",
+                "video_results": 0.9372811623597757
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a motorcycle cruising along a coastal highway-0.mp4",
+                "video_results": 0.9842309158706217
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a motorcycle turning a corner-0.mp4",
+                "video_results": 0.9662839076018361
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a motorcycle slowing down to stop-0.mp4",
+                "video_results": 0.9749958332842351
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a motorcycle gliding through a snowy field-0.mp4",
+                "video_results": 0.9760093911696623
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a motorcycle accelerating to gain speed-0.mp4",
+                "video_results": 0.9652871508629494
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an airplane soaring through a clear blue sky-0.mp4",
+                "video_results": 0.9892911386159031
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an airplane taking off-0.mp4",
+                "video_results": 0.9850684448876372
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an airplane landing smoothly on a runway-0.mp4",
+                "video_results": 0.9855992399931394
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an airplane accelerating to gain speed-0.mp4",
+                "video_results": 0.989101793261375
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bus turning a corner-0.mp4",
+                "video_results": 0.9746914973270958
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bus stuck in traffic during rush hour-0.mp4",
+                "video_results": 0.9750007891711706
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bus accelerating to gain speed-0.mp4",
+                "video_results": 0.9634850360249602
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a train speeding down the tracks-0.mp4",
+                "video_results": 0.952211552290855
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a train crossing over a tall bridge-0.mp4",
+                "video_results": 0.9562414562646641
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a train accelerating to gain speed-0.mp4",
+                "video_results": 0.947891538144037
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a truck turning a corner-0.mp4",
+                "video_results": 0.9732256217791604
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a truck anchored in a tranquil bay-0.mp4",
+                "video_results": 0.9843170411711025
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a truck stuck in traffic during rush hour-0.mp4",
+                "video_results": 0.9693582474606429
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a truck slowing down to stop-0.mp4",
+                "video_results": 0.9785552709498597
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a truck accelerating to gain speed-0.mp4",
+                "video_results": 0.9804435984830631
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a boat sailing smoothly on a calm lake-0.mp4",
+                "video_results": 0.9736733315788921
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a boat slowing down to stop-0.mp4",
+                "video_results": 0.9711176116263145
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a boat accelerating to gain speed-0.mp4",
+                "video_results": 0.9769634927321623
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bird soaring gracefully in the sky-0.mp4",
+                "video_results": 0.984739256012234
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bird building a nest from twigs and leaves-0.mp4",
+                "video_results": 0.9548561229830473
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bird flying over a snowy forest-0.mp4",
+                "video_results": 0.9522226739253394
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cat grooming itself meticulously with its tongue-0.mp4",
+                "video_results": 0.9711513116247433
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cat playing in park-0.mp4",
+                "video_results": 0.975912738486153
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cat drinking water-0.mp4",
+                "video_results": 0.9696881693716481
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cat running happily-0.mp4",
+                "video_results": 0.9747432855804581
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a dog enjoying a peaceful walk-0.mp4",
+                "video_results": 0.9768438103089125
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a dog playing in park-0.mp4",
+                "video_results": 0.9674907674992407
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a dog drinking water-0.mp4",
+                "video_results": 0.9751879012138376
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a dog running happily-0.mp4",
+                "video_results": 0.9731955528355172
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a horse bending down to drink water from a river-0.mp4",
+                "video_results": 0.9682540699105497
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a horse galloping across an open field-0.mp4",
+                "video_results": 0.9792033905392419
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a horse taking a peaceful walk-0.mp4",
+                "video_results": 0.9725385045811862
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a horse running to join a herd of its kind-0.mp4",
+                "video_results": 0.9737873626397007
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a sheep bending down to drink water from a river-0.mp4",
+                "video_results": 0.9659862564416792
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a sheep taking a peaceful walk-0.mp4",
+                "video_results": 0.9715285381446916
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a sheep running to join a herd of its kind-0.mp4",
+                "video_results": 0.9606049931524425
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cow bending down to drink water from a river-0.mp4",
+                "video_results": 0.9762782221980004
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cow chewing cud while resting in a tranquil barn-0.mp4",
+                "video_results": 0.9757432553032565
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cow running to join a herd of its kind-0.mp4",
+                "video_results": 0.9653563582450876
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an elephant spraying itself with water using its trunk to cool down-0.mp4",
+                "video_results": 0.972351594659298
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an elephant taking a peaceful walk-0.mp4",
+                "video_results": 0.9715924398972998
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an elephant running to join a herd of its kind-0.mp4",
+                "video_results": 0.9725327326827499
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bear catching a salmon in its powerful jaws-0.mp4",
+                "video_results": 0.9780368364710333
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bear sniffing the air for scents of food-0.mp4",
+                "video_results": 0.982414448657067
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bear climbing a tree-0.mp4",
+                "video_results": 0.9798509255331406
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bear hunting for prey-0.mp4",
+                "video_results": 0.9710065077162675
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a zebra bending down to drink water from a river-0.mp4",
+                "video_results": 0.966439211071047
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a zebra running to join a herd of its kind-0.mp4",
+                "video_results": 0.954316270166253
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a zebra taking a peaceful walk-0.mp4",
+                "video_results": 0.9619645770651343
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a giraffe bending down to drink water from a river-0.mp4",
+                "video_results": 0.9717427358446717
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a giraffe taking a peaceful walk-0.mp4",
+                "video_results": 0.9760431117074901
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a giraffe running to join a herd of its kind-0.mp4",
+                "video_results": 0.9664257361615185
+            }
+        ]
+    ],
+    "aesthetic_quality": [
+        0.6529411042249331,
+        [
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Close up of grapes on a rotating table.-0.mp4",
+                "video_results": 0.7300900816917419
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Turtle swimming in ocean.-0.mp4",
+                "video_results": 0.6803070902824402
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A storm trooper vacuuming the beach.-0.mp4",
+                "video_results": 0.6798357367515564
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A panda standing on a surfboard in the ocean in sunset.-0.mp4",
+                "video_results": 0.6343836188316345
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/An astronaut feeding ducks on a sunny afternoon, reflection from the water.-0.mp4",
+                "video_results": 0.6766515970230103
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Two pandas discussing an academic paper.-0.mp4",
+                "video_results": 0.5706526637077332
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Sunset time lapse at the beach with moving clouds and colors in the sky.-0.mp4",
+                "video_results": 0.7831323146820068
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A fat rabbit wearing a purple robe walking through a fantasy landscape.-0.mp4",
+                "video_results": 0.7476527690887451
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A koala bear playing piano in the forest.-0.mp4",
+                "video_results": 0.5837728381156921
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/An astronaut flying in space.-0.mp4",
+                "video_results": 0.6967982053756714
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Fireworks.-0.mp4",
+                "video_results": 0.7193413376808167
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/An animated painting of fluffy white clouds moving in sky.-0.mp4",
+                "video_results": 0.5744519829750061
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Flying through fantasy landscapes.-0.mp4",
+                "video_results": 0.6671269536018372
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A bigfoot walking in the snowstorm.-0.mp4",
+                "video_results": 0.7431783676147461
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A squirrel eating a burger.-0.mp4",
+                "video_results": 0.7614935040473938
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A cat wearing sunglasses and working as a lifeguard at a pool.-0.mp4",
+                "video_results": 0.7298535704612732
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Snow rocky mountains peaks canyon. snow blanketed rocky mountains surround and shadow deep canyons. the canyons twist and bend through the high elevated mountain peaks.-0.mp4",
+                "video_results": 0.640824019908905
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Splash of turquoise water in extreme slow motion, alpha channel included.-0.mp4",
+                "video_results": 0.6462012529373169
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an ice cream is melting on the table.-0.mp4",
+                "video_results": 0.5738770365715027
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a drone flying over a snowy forest.-0.mp4",
+                "video_results": 0.5435215830802917
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a shark is swimming in the ocean.-0.mp4",
+                "video_results": 0.6348835825920105
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Aerial panoramic video from a drone of a fantasy land.-0.mp4",
+                "video_results": 0.5525141358375549
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a teddy bear is swimming in the ocean.-0.mp4",
+                "video_results": 0.7663528323173523
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/time lapse of sunrise on mars.-0.mp4",
+                "video_results": 0.7113314867019653
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/golden fish swimming in the ocean.-0.mp4",
+                "video_results": 0.6442926526069641
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/An artist brush painting on a canvas close up.-0.mp4",
+                "video_results": 0.4187541902065277
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A drone view of celebration with Christmas tree and fireworks, starry sky - background.-0.mp4",
+                "video_results": 0.6914853453636169
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/happy dog wearing a yellow turtleneck, studio, portrait, facing camera, dark background-0.mp4",
+                "video_results": 0.5699121356010437
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Origami dancers in white paper, 3D render, on white background, studio shot, dancing modern dance.-0.mp4",
+                "video_results": 0.5625180602073669
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Campfire at night in a snowy forest with starry sky in the background.-0.mp4",
+                "video_results": 0.6795070171356201
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a fantasy landscape-0.mp4",
+                "video_results": 0.6723775267601013
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A 3D model of a 1800s victorian house.-0.mp4",
+                "video_results": 0.6674013733863831
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/this is how I do makeup in the morning.-0.mp4",
+                "video_results": 0.4137237071990967
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A raccoon that looks like a turtle, digital art.-0.mp4",
+                "video_results": 0.6538225412368774
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Robot dancing in Times Square.-0.mp4",
+                "video_results": 0.7579032182693481
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Busy freeway at night.-0.mp4",
+                "video_results": 0.6205828785896301
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Balloon full of water exploding in extreme slow motion.-0.mp4",
+                "video_results": 0.6628023982048035
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/An astronaut is riding a horse in the space in a photorealistic style.-0.mp4",
+                "video_results": 0.7151020169258118
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Macro slo-mo. Slow motion cropped closeup of roasted coffee beans falling into an empty bowl.-0.mp4",
+                "video_results": 0.6157190799713135
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Sewing machine, old sewing machine working.-0.mp4",
+                "video_results": 0.5353784561157227
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Motion colour drop in water, ink swirling in water, colourful ink in water, abstraction fancy dream cloud of ink.-0.mp4",
+                "video_results": 0.6421559453010559
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Few big purple plums rotating on the turntable. water drops appear on the skin during rotation. isolated on the white background. close-up. macro.-0.mp4",
+                "video_results": 0.5384225845336914
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Vampire makeup face of beautiful girl, red contact lenses.-0.mp4",
+                "video_results": 0.5618724822998047
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Ashtray full of butts on table, smoke flowing on black background, close-up-0.mp4",
+                "video_results": 0.5461757183074951
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Pacific coast, carmel by the sea ocean and waves.-0.mp4",
+                "video_results": 0.7175996899604797
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A teddy bear is playing drum kit in NYC Times Square.-0.mp4",
+                "video_results": 0.7384240627288818
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A corgi is playing drum kit.-0.mp4",
+                "video_results": 0.5439221262931824
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/An Iron man is playing the electronic guitar, high electronic guitar.-0.mp4",
+                "video_results": 0.5070857405662537
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A raccoon is playing the electronic guitar.-0.mp4",
+                "video_results": 0.6442762613296509
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A boat sailing leisurely along the Seine River with the Eiffel Tower in background by Vincent van Gogh-0.mp4",
+                "video_results": 0.6683709025382996
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A corgi's head depicted as an explosion of a nebula-0.mp4",
+                "video_results": 0.6182374358177185
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A fantasy landscape-0.mp4",
+                "video_results": 0.7139852046966553
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A future where humans have achieved teleportation technology-0.mp4",
+                "video_results": 0.5761053562164307
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A jellyfish floating through the ocean, with bioluminescent tentacles-0.mp4",
+                "video_results": 0.6605432629585266
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A Mars rover moving on Mars-0.mp4",
+                "video_results": 0.6157726645469666
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A panda drinking coffee in a cafe in Paris-0.mp4",
+                "video_results": 0.7051489353179932
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A space shuttle launching into orbit, with flames and smoke billowing out from the engines-0.mp4",
+                "video_results": 0.7178442478179932
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A steam train moving on a mountainside-0.mp4",
+                "video_results": 0.5274772047996521
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A super cool giant robot in Cyberpunk Beijing-0.mp4",
+                "video_results": 0.7487989068031311
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tropical beach at sunrise, with palm trees and crystal-clear water in the foreground-0.mp4",
+                "video_results": 0.8107829093933105
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Cinematic shot of Van Gogh's selfie, Van Gogh style-0.mp4",
+                "video_results": 0.6304942965507507
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Gwen Stacy reading a book-0.mp4",
+                "video_results": 0.6461917161941528
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Iron Man flying in the sky-0.mp4",
+                "video_results": 0.7422897219657898
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/The bund Shanghai, oil painting-0.mp4",
+                "video_results": 0.6636178493499756
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Yoda playing guitar on the stage-0.mp4",
+                "video_results": 0.7073670625686646
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A beautiful coastal beach in spring, waves lapping on sand by Hokusai, in the style of Ukiyo-0.mp4",
+                "video_results": 0.8484597206115723
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A beautiful coastal beach in spring, waves lapping on sand by Vincent van Gogh-0.mp4",
+                "video_results": 0.8591597080230713
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A boat sailing leisurely along the Seine River with the Eiffel Tower in background-0.mp4",
+                "video_results": 0.7123964428901672
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A car moving slowly on an empty street, rainy evening-0.mp4",
+                "video_results": 0.5923546552658081
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A cat eating food out of a bowl-0.mp4",
+                "video_results": 0.619083821773529
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A cat wearing sunglasses at a pool-0.mp4",
+                "video_results": 0.6948691010475159
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A confused panda in calculus class-0.mp4",
+                "video_results": 0.5960454344749451
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A cute fluffy panda eating Chinese food in a restaurant-0.mp4",
+                "video_results": 0.6331843137741089
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A cute happy Corgi playing in park, sunset-0.mp4",
+                "video_results": 0.6361265778541565
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A cute raccoon playing guitar in a boat on the ocean-0.mp4",
+                "video_results": 0.676516592502594
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A happy fuzzy panda playing guitar nearby a campfire, snow mountain in the background-0.mp4",
+                "video_results": 0.6384943723678589
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A lightning striking atop of eiffel tower, dark clouds in the sky-0.mp4",
+                "video_results": 0.7049457430839539
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A modern art museum, with colorful paintings-0.mp4",
+                "video_results": 0.4220384359359741
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A panda cooking in the kitchen-0.mp4",
+                "video_results": 0.6975394487380981
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A panda playing on a swing set-0.mp4",
+                "video_results": 0.6299675107002258
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A polar bear is playing guitar-0.mp4",
+                "video_results": 0.654386579990387
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A raccoon dressed in suit playing the trumpet, stage background-0.mp4",
+                "video_results": 0.6427146196365356
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A robot DJ is playing the turntable, in heavy raining futuristic tokyo rooftop cyberpunk night, sci-fi, fantasy-0.mp4",
+                "video_results": 0.7627167701721191
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A shark swimming in clear Caribbean ocean-0.mp4",
+                "video_results": 0.6839293837547302
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A super robot protecting city-0.mp4",
+                "video_results": 0.6975390911102295
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A teddy bear washing the dishes-0.mp4",
+                "video_results": 0.7174682021141052
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/An epic tornado attacking above a glowing city at night, the tornado is made of smoke-0.mp4",
+                "video_results": 0.6434729099273682
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/An oil painting of a couple in formal evening wear going home get caught in a heavy downpour with umbrellas-0.mp4",
+                "video_results": 0.6990941762924194
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Clown fish swimming through the coral reef-0.mp4",
+                "video_results": 0.5857511162757874
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Hyper-realistic spaceship landing on Mars-0.mp4",
+                "video_results": 0.6643377542495728
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/The bund Shanghai, vibrant color-0.mp4",
+                "video_results": 0.663558304309845
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Vincent van Gogh is painting in the room-0.mp4",
+                "video_results": 0.5143467783927917
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Yellow flowers swing in the wind-0.mp4",
+                "video_results": 0.7105516791343689
+            }
+        ]
+    ],
+    "imaging_quality": [
+        0.6774567778291224,
+        [
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Close up of grapes on a rotating table.-0.mp4",
+                "video_results": 71.93082164246358
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Turtle swimming in ocean.-0.mp4",
+                "video_results": 70.78148312038846
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A storm trooper vacuuming the beach.-0.mp4",
+                "video_results": 70.50942192548587
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A panda standing on a surfboard in the ocean in sunset.-0.mp4",
+                "video_results": 72.75060432339892
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/An astronaut feeding ducks on a sunny afternoon, reflection from the water.-0.mp4",
+                "video_results": 75.94844912305291
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Two pandas discussing an academic paper.-0.mp4",
+                "video_results": 71.76575451132692
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Sunset time lapse at the beach with moving clouds and colors in the sky.-0.mp4",
+                "video_results": 69.26587248437198
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A fat rabbit wearing a purple robe walking through a fantasy landscape.-0.mp4",
+                "video_results": 77.27300205937138
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A koala bear playing piano in the forest.-0.mp4",
+                "video_results": 58.90295297128183
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/An astronaut flying in space.-0.mp4",
+                "video_results": 68.19987341798382
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Fireworks.-0.mp4",
+                "video_results": 53.50926133144049
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/An animated painting of fluffy white clouds moving in sky.-0.mp4",
+                "video_results": 54.38824434633608
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Flying through fantasy landscapes.-0.mp4",
+                "video_results": 68.01362586315767
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A bigfoot walking in the snowstorm.-0.mp4",
+                "video_results": 69.73581799165702
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A squirrel eating a burger.-0.mp4",
+                "video_results": 69.04947116051191
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A cat wearing sunglasses and working as a lifeguard at a pool.-0.mp4",
+                "video_results": 72.39634676332827
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Snow rocky mountains peaks canyon. snow blanketed rocky mountains surround and shadow deep canyons. the canyons twist and bend through the high elevated mountain peaks.-0.mp4",
+                "video_results": 77.3189831957405
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Splash of turquoise water in extreme slow motion, alpha channel included.-0.mp4",
+                "video_results": 63.54880424782082
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an ice cream is melting on the table.-0.mp4",
+                "video_results": 70.60960355217074
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a drone flying over a snowy forest.-0.mp4",
+                "video_results": 61.0472974424009
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a shark is swimming in the ocean.-0.mp4",
+                "video_results": 68.4583283883554
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Aerial panoramic video from a drone of a fantasy land.-0.mp4",
+                "video_results": 76.68374388894917
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a teddy bear is swimming in the ocean.-0.mp4",
+                "video_results": 75.82294793776524
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/time lapse of sunrise on mars.-0.mp4",
+                "video_results": 71.21930421428915
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/golden fish swimming in the ocean.-0.mp4",
+                "video_results": 72.81552962314936
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/An artist brush painting on a canvas close up.-0.mp4",
+                "video_results": 45.80746313966351
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A drone view of celebration with Christmas tree and fireworks, starry sky - background.-0.mp4",
+                "video_results": 46.75124990204234
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/happy dog wearing a yellow turtleneck, studio, portrait, facing camera, dark background-0.mp4",
+                "video_results": 71.40631103515625
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Origami dancers in white paper, 3D render, on white background, studio shot, dancing modern dance.-0.mp4",
+                "video_results": 49.620133411737136
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Campfire at night in a snowy forest with starry sky in the background.-0.mp4",
+                "video_results": 47.01595565419138
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a fantasy landscape-0.mp4",
+                "video_results": 67.65847316789038
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A 3D model of a 1800s victorian house.-0.mp4",
+                "video_results": 77.77900658124759
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/this is how I do makeup in the morning.-0.mp4",
+                "video_results": 59.30997118537809
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A raccoon that looks like a turtle, digital art.-0.mp4",
+                "video_results": 69.95553701895254
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Robot dancing in Times Square.-0.mp4",
+                "video_results": 67.90132094018253
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Busy freeway at night.-0.mp4",
+                "video_results": 51.95995439129111
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Balloon full of water exploding in extreme slow motion.-0.mp4",
+                "video_results": 67.20460255940755
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/An astronaut is riding a horse in the space in a photorealistic style.-0.mp4",
+                "video_results": 72.39261542426215
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Macro slo-mo. Slow motion cropped closeup of roasted coffee beans falling into an empty bowl.-0.mp4",
+                "video_results": 66.61546961466472
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Sewing machine, old sewing machine working.-0.mp4",
+                "video_results": 70.59902379542221
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Motion colour drop in water, ink swirling in water, colourful ink in water, abstraction fancy dream cloud of ink.-0.mp4",
+                "video_results": 50.57702825098862
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Few big purple plums rotating on the turntable. water drops appear on the skin during rotation. isolated on the white background. close-up. macro.-0.mp4",
+                "video_results": 57.76367088600441
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Vampire makeup face of beautiful girl, red contact lenses.-0.mp4",
+                "video_results": 72.05746874397184
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Ashtray full of butts on table, smoke flowing on black background, close-up-0.mp4",
+                "video_results": 67.77782383671513
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Pacific coast, carmel by the sea ocean and waves.-0.mp4",
+                "video_results": 71.12305930808738
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A teddy bear is playing drum kit in NYC Times Square.-0.mp4",
+                "video_results": 68.56990305582683
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A corgi is playing drum kit.-0.mp4",
+                "video_results": 70.66155393624011
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/An Iron man is playing the electronic guitar, high electronic guitar.-0.mp4",
+                "video_results": 65.87735785967038
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A raccoon is playing the electronic guitar.-0.mp4",
+                "video_results": 65.36339884628484
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A boat sailing leisurely along the Seine River with the Eiffel Tower in background by Vincent van Gogh-0.mp4",
+                "video_results": 78.89642993314767
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A corgi's head depicted as an explosion of a nebula-0.mp4",
+                "video_results": 66.79896517153139
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A fantasy landscape-0.mp4",
+                "video_results": 69.063836886559
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A future where humans have achieved teleportation technology-0.mp4",
+                "video_results": 69.28660451630016
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A jellyfish floating through the ocean, with bioluminescent tentacles-0.mp4",
+                "video_results": 64.16968239678278
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A Mars rover moving on Mars-0.mp4",
+                "video_results": 76.93021929705584
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A panda drinking coffee in a cafe in Paris-0.mp4",
+                "video_results": 67.88944023038134
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A space shuttle launching into orbit, with flames and smoke billowing out from the engines-0.mp4",
+                "video_results": 52.21048689477237
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A steam train moving on a mountainside-0.mp4",
+                "video_results": 64.30605749436367
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A super cool giant robot in Cyberpunk Beijing-0.mp4",
+                "video_results": 77.54887079309535
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A tropical beach at sunrise, with palm trees and crystal-clear water in the foreground-0.mp4",
+                "video_results": 61.256638279667605
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Cinematic shot of Van Gogh's selfie, Van Gogh style-0.mp4",
+                "video_results": 72.9376372349115
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Gwen Stacy reading a book-0.mp4",
+                "video_results": 76.94703674316406
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Iron Man flying in the sky-0.mp4",
+                "video_results": 76.10925811014057
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/The bund Shanghai, oil painting-0.mp4",
+                "video_results": 70.76349347903405
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Yoda playing guitar on the stage-0.mp4",
+                "video_results": 66.4577244417167
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A beautiful coastal beach in spring, waves lapping on sand by Hokusai, in the style of Ukiyo-0.mp4",
+                "video_results": 77.72371532298901
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A beautiful coastal beach in spring, waves lapping on sand by Vincent van Gogh-0.mp4",
+                "video_results": 75.47187645052686
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A boat sailing leisurely along the Seine River with the Eiffel Tower in background-0.mp4",
+                "video_results": 76.25940167462385
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A car moving slowly on an empty street, rainy evening-0.mp4",
+                "video_results": 54.57636195053289
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A cat eating food out of a bowl-0.mp4",
+                "video_results": 73.0306293817214
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A cat wearing sunglasses at a pool-0.mp4",
+                "video_results": 67.77459768601406
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A confused panda in calculus class-0.mp4",
+                "video_results": 70.76001301518193
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A cute fluffy panda eating Chinese food in a restaurant-0.mp4",
+                "video_results": 73.86960997404876
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A cute happy Corgi playing in park, sunset-0.mp4",
+                "video_results": 67.79439252688562
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A cute raccoon playing guitar in a boat on the ocean-0.mp4",
+                "video_results": 73.80942733199508
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A happy fuzzy panda playing guitar nearby a campfire, snow mountain in the background-0.mp4",
+                "video_results": 73.18160709334009
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A lightning striking atop of eiffel tower, dark clouds in the sky-0.mp4",
+                "video_results": 63.484952055377725
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A modern art museum, with colorful paintings-0.mp4",
+                "video_results": 52.1774574091405
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A panda cooking in the kitchen-0.mp4",
+                "video_results": 67.63999665813681
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A panda playing on a swing set-0.mp4",
+                "video_results": 66.76709116241078
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A polar bear is playing guitar-0.mp4",
+                "video_results": 74.49432269437814
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A raccoon dressed in suit playing the trumpet, stage background-0.mp4",
+                "video_results": 67.96863249790522
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A robot DJ is playing the turntable, in heavy raining futuristic tokyo rooftop cyberpunk night, sci-fi, fantasy-0.mp4",
+                "video_results": 65.54012637668185
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A shark swimming in clear Caribbean ocean-0.mp4",
+                "video_results": 57.597655731954696
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A super robot protecting city-0.mp4",
+                "video_results": 71.48764221756547
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/A teddy bear washing the dishes-0.mp4",
+                "video_results": 72.18245734697507
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/An epic tornado attacking above a glowing city at night, the tornado is made of smoke-0.mp4",
+                "video_results": 42.01127174754202
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/An oil painting of a couple in formal evening wear going home get caught in a heavy downpour with umbrellas-0.mp4",
+                "video_results": 73.85432198606891
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Clown fish swimming through the coral reef-0.mp4",
+                "video_results": 72.77627488124517
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Hyper-realistic spaceship landing on Mars-0.mp4",
+                "video_results": 76.57868985776548
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/The bund Shanghai, vibrant color-0.mp4",
+                "video_results": 78.01552374568986
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Vincent van Gogh is painting in the room-0.mp4",
+                "video_results": 71.03549994951413
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/Yellow flowers swing in the wind-0.mp4",
+                "video_results": 77.21820511052638
+            }
+        ]
+    ],
+    "dynamic_degree": [
+        0.7916666666666666,
+        [
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person swimming in ocean-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person giving a presentation to a room full of colleagues-0.mp4",
+                "video_results": false
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person washing the dishes-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person eating a burger-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person walking in the snowstorm-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person drinking coffee in a cafe-0.mp4",
+                "video_results": false
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a person playing guitar-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bicycle leaning against a tree-0.mp4",
+                "video_results": false
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bicycle gliding through a snowy field-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bicycle slowing down to stop-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bicycle accelerating to gain speed-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a car stuck in traffic during rush hour-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a car turning a corner-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a car slowing down to stop-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a car accelerating to gain speed-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a motorcycle cruising along a coastal highway-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a motorcycle turning a corner-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a motorcycle slowing down to stop-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a motorcycle gliding through a snowy field-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a motorcycle accelerating to gain speed-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an airplane soaring through a clear blue sky-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an airplane taking off-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an airplane landing smoothly on a runway-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an airplane accelerating to gain speed-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bus turning a corner-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bus stuck in traffic during rush hour-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bus accelerating to gain speed-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a train speeding down the tracks-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a train crossing over a tall bridge-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a train accelerating to gain speed-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a truck turning a corner-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a truck anchored in a tranquil bay-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a truck stuck in traffic during rush hour-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a truck slowing down to stop-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a truck accelerating to gain speed-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a boat sailing smoothly on a calm lake-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a boat slowing down to stop-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a boat accelerating to gain speed-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bird soaring gracefully in the sky-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bird building a nest from twigs and leaves-0.mp4",
+                "video_results": false
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bird flying over a snowy forest-0.mp4",
+                "video_results": false
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cat grooming itself meticulously with its tongue-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cat playing in park-0.mp4",
+                "video_results": false
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cat drinking water-0.mp4",
+                "video_results": false
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cat running happily-0.mp4",
+                "video_results": false
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a dog enjoying a peaceful walk-0.mp4",
+                "video_results": false
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a dog playing in park-0.mp4",
+                "video_results": false
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a dog drinking water-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a dog running happily-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a horse bending down to drink water from a river-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a horse galloping across an open field-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a horse taking a peaceful walk-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a horse running to join a herd of its kind-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a sheep bending down to drink water from a river-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a sheep taking a peaceful walk-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a sheep running to join a herd of its kind-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cow bending down to drink water from a river-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cow chewing cud while resting in a tranquil barn-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a cow running to join a herd of its kind-0.mp4",
+                "video_results": false
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an elephant spraying itself with water using its trunk to cool down-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an elephant taking a peaceful walk-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/an elephant running to join a herd of its kind-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bear catching a salmon in its powerful jaws-0.mp4",
+                "video_results": false
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bear sniffing the air for scents of food-0.mp4",
+                "video_results": false
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bear climbing a tree-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a bear hunting for prey-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a zebra bending down to drink water from a river-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a zebra running to join a herd of its kind-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a zebra taking a peaceful walk-0.mp4",
+                "video_results": false
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a giraffe bending down to drink water from a river-0.mp4",
+                "video_results": true
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a giraffe taking a peaceful walk-0.mp4",
+                "video_results": false
+            },
+            {
+                "video_path": "/home/wm-vla-rl/_ext/wan_eval/gen_student_jepa_t8/a giraffe running to join a herd of its kind-0.mp4",
+                "video_results": true
+            }
+        ]
+    ]
+}

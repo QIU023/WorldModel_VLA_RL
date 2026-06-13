@@ -1,0 +1,62 @@
+[
+  {
+    "latent_F": 21,
+    "px_F": 81,
+    "kda_s": 0.466,
+    "kda_GB": 14.6,
+    "softmax_s": 0.539,
+    "softmax_GB": 13.6,
+    "speedup": 1.16,
+    "mem_ratio": 0.93
+  },
+  {
+    "latent_F": 41,
+    "px_F": 161,
+    "kda_s": 0.995,
+    "kda_GB": 44.3,
+    "softmax_s": 1.478,
+    "softmax_GB": 44.2,
+    "speedup": 1.49,
+    "mem_ratio": 1.0
+  },
+  {
+    "latent_F": 81,
+    "px_F": 321,
+    "kda_s": "OOM",
+    "kda_GB": null,
+    "softmax_s": "OOM",
+    "softmax_GB": null,
+    "speedup": null,
+    "mem_ratio": null
+  },
+  {
+    "latent_F": 121,
+    "px_F": 481,
+    "kda_s": "OOM",
+    "kda_GB": null,
+    "softmax_s": "OOM",
+    "softmax_GB": null,
+    "speedup": null,
+    "mem_ratio": null
+  },
+  {
+    "latent_F": 161,
+    "px_F": 641,
+    "kda_s": "OOM",
+    "kda_GB": null,
+    "softmax_s": "OOM",
+    "softmax_GB": null,
+    "speedup": null,
+    "mem_ratio": null
+  },
+  {
+    "latent_F": 231,
+    "px_F": 921,
+    "kda_s": "OOM",
+    "kda_GB": null,
+    "softmax_s": "OOM",
+    "softmax_GB": null,
+    "speedup": null,
+    "mem_ratio": null
+  }
+]

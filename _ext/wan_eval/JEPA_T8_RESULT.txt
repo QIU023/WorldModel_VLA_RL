@@ -1,0 +1,11 @@
+dimension                   teacher  MSEonly  JEPA-T2  JEPA-T8  dT8-MSE   dT8-T2
+subject_consistency           94.08    88.97    90.60    90.88    +1.91    +0.29
+background_consistency        95.93    91.79    92.69    92.36    +0.57    -0.32
+temporal_flickering           95.76    95.43    95.66    95.33    -0.10    -0.32
+motion_smoothness             98.13    97.30    97.28    97.20    -0.10    -0.08
+aesthetic_quality             67.34    64.15    65.33    65.29    +1.14    -0.04
+imaging_quality               69.59    65.87    67.96    67.75    +1.88    -0.21
+dynamic_degree                95.83    83.33    77.78    79.17    -4.17    +1.39
+Quality avg (7)               88.09    83.84    83.90    84.00    +0.16    +0.10
+  dynamic_degree: MSE-only 83.33 -> JEPA-T2 77.78 (-5.56, the run-1 regression) -> JEPA-T8 79.17 (-4.17 vs MSE, +1.39 vs T2)
+  §3a RUN-2 VERDICT: dynamic_degree STILL SUPPRESSED; net vs JEPA-T2 +0.10 (win); net vs MSE-only +0.16 (win)

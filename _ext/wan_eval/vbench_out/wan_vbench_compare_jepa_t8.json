@@ -1,0 +1,44 @@
+{
+  "teacher": {
+    "subject_consistency": 0.9407684148547963,
+    "background_consistency": 0.9592672658521075,
+    "temporal_flickering": 0.957603160733491,
+    "motion_smoothness": 0.9812623840608209,
+    "aesthetic_quality": 0.6733796734322783,
+    "imaging_quality": 0.6959372049015419,
+    "dynamic_degree": 0.9583333333333334
+  },
+  "mse_only": {
+    "subject_consistency": 0.8897281740727421,
+    "background_consistency": 0.9179133393043696,
+    "temporal_flickering": 0.9542947203692268,
+    "motion_smoothness": 0.973029822495859,
+    "aesthetic_quality": 0.6415272726807543,
+    "imaging_quality": 0.658655408547565,
+    "dynamic_degree": 0.8333333333333334
+  },
+  "jepa_t2": {
+    "subject_consistency": 0.9059772256865269,
+    "background_consistency": 0.9268810538358466,
+    "temporal_flickering": 0.9565686820161109,
+    "motion_smoothness": 0.9727870197958528,
+    "aesthetic_quality": 0.6533351633497464,
+    "imaging_quality": 0.6795735936359182,
+    "dynamic_degree": 0.7777777777777778
+  },
+  "jepa_t8": {
+    "subject_consistency": 0.9088405122165568,
+    "background_consistency": 0.9236486390579578,
+    "temporal_flickering": 0.9533199438830604,
+    "motion_smoothness": 0.9720091717849686,
+    "aesthetic_quality": 0.6529411042249331,
+    "imaging_quality": 0.6774567778291224,
+    "dynamic_degree": 0.7916666666666666
+  },
+  "quality_avg": {
+    "teacher": 88.09359195954814,
+    "mse_only": 83.83545815434071,
+    "jepa_t2": 83.89857880139687,
+    "jepa_t8": 83.99832593804665
+  }
+}
