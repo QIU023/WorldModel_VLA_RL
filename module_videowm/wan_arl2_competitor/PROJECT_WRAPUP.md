@@ -1,12 +1,32 @@
 # 项目收尾总结 — WM/VLA 线性化蒸馏全线回顾
 
-> v1 (2026-06-12 morning)。run-2(T=8)/ F-sweep / conthead eval 出数后更新 v2。
+> v2 (2026-06-13)。run-2(T=8)=84.00 / F-sweep=诚实负 / conthead=partial 已填入。
 
 ## 0. 一句话
 
 把 Wan2.1-AR 视频世界模型 75% 线性化(KDA 时序 + AttnRes 深度 + intra-softmax 分解),
-**可复现 teacher−4.2、无维度坍塌**;逐项归因 ablation(算子 → 补训 → REPA-JEPA 损失);
+**可复现 teacher−4.1(84.0)、无维度坍塌**;逐项归因 ablation(算子 → 补训 → REPA-JEPA 损失);
 诊断并修复两类 KDA 推理态 bug(其一值 +15pt);REPA 式表征蒸馏用于线性化是空白点,首个数据点已拿到。
+**效率是诚实负结果**:此教师本就有界 21 帧注意力,线性化无 headroom。
+
+## 0.5 跨 paradigm 总结(全线一句话:质量可逼近、分解是必须、效率看 base、VLA 瓶颈在接口)
+
+| # | Paradigm | 判决 | 核心数 |
+|---|---|---|---|
+| ① | JEPA-WM 隐空间(M1/M2) | 🔴 dead-end(遗产复用) | 隐空间太小,KDA 长序列优势出不来;V-JEPA2 编码器后变 REPA 目标 |
+| ② | dino_wm / point_maze | 🟢 正 | AttnRes 0.370 < SDPA 0.416,KDA **13×** 加速 |
+| ③ | iVideoGPT / KDA-LLaMA | 🟢 正 | **2.47×** @65k token,长序列效率 thesis 在 LM 侧成立 |
+| ④ | Cosmos 线性化 | 🟠 诚实负(错 base) | 输出蒸馏逼近有效(LPIPS 0.85→0.50),但 full-3D 时空耦合 → dynamic 0.92→0.49,效率无赢(<66k) |
+| ⑤ | WorldVLA-7B KDA(VLA) | 🔴 算子非瓶颈 | 75% 离散闭环 **0%**(离散动作误差复合)、50%=2%;conthead 修法 eval partial 偏低 |
+| ⑥ | ARL² 竞品 / Causal Forcing(headline) | 🟡 质量成立、效率负 | Quality **84.0** vs teacher 88.09 无坍塌;REPA 空间 +1.9 / dynamic −4.2;效率负 |
+
+**跨线规律(真 take-aways):**
+1. **质量逼近可行,但效率 win 只在"长序列 × 无界 softmax"成立。** ②③(纯时序/LM,序列真长)有 win;④⑥(生产级 video teacher,时空耦合或**有界局部注意力**)无 headroom。线性化效率卖点高度依赖教师是否真有"长无界注意力可省"——最反直觉、最重要。
+2. **分解(intra-softmax + inter-linear)是必须的**:uniform 把空间轴也线性化 → 动态崩(Cosmos)→ 催生 ⑥ 正确设计。
+3. **VLA 瓶颈是离散动作接口,不是算子**(WorldVLA 离散 0%)→ 连续头才是对的修法。
+4. **REPA 表征蒸馏有效但与动态有张力**:空间 +1.9,代价 dynamic −4.2(对齐平滑 latent 轨迹压制运动)。
+5. **推理递归态是纪律级的坑**:两个 KDA 推理 bug(decode-cache +15pt、streaming-state)→ 先验证递归态再信指标。
+6. **loss floor ≠ 质量;不可复现他报数只能软参照**(ARL² 86.71 无 code/data/lr)。
 
 ## 1. 各线结论
 
