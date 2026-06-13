@@ -1,0 +1,68 @@
+Current Python version 3.10 is below the recommended 3.11 version. It is recommended to upgrade to Python 3.11 or higher for the best experience.
+[patch] flash_attention -> torch SDPA (H200 flash backend; no flash-attn pkg)
+[patch] flash_attention -> torch SDPA (H200 flash backend; no flash-attn pkg)
+KV inference with 1 frames per block
+[causalforcing] key 'generator' absent; using 'generator_ema'
+[causalforcing] loaded base generator from /home/causal_forcing_ckpt/framewise/causal_forcing.pt
+[factorize-causal] 22/30 blocks -> intra-softmax+inter-causalKDA; anchors @ [0, 4, 8, 12, 17, 21, 25, 29]
+[attnres] 30 blocks, lpb=7, 4 cross-layer AttnRes aggregation points
+[lora] r=8 on Q/K/V/O+FFN of 22 linearized blocks -> 5.86M LoRA params
+[causalforcing] surgery: 446 trained tensors -> generator (unexpected=0, missing-base=825); ratio=0.75 groups=4 lora_r=8
+[compare] model loaded in 68.8s
+/home/venv/cosmos_predict2/lib/python3.10/site-packages/torch/nn/functional.py:2958: UserWarning: Mismatch dtype between input and weight: input dtype = float, weight dtype = c10::BFloat16, Cannot dispatch to fused implementation. (Triggered internally at /pytorch/aten/src/ATen/native/layer_norm.cpp:346.)
+  return torch.rms_norm(input, normalized_shape, weight, eps)
+Converted action_str into: ['forward 0.2m', 'turn_left 22.5°', 'forward 0.2m', 'turn_right 22.5°']
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:00<00:01,  1.86it/s] 50%|█████     | 2/4 [00:00<00:00,  2.35it/s] 75%|███████▌  | 3/4 [00:01<00:00,  2.58it/s]100%|██████████| 4/4 [00:01<00:00,  2.65it/s]100%|██████████| 4/4 [00:01<00:00,  2.52it/s]
+[causalforcing] 1 rollout(s), 17 pixel frames each, 3.63s total (3.63s/rollout)
+video_tensors shape: torch.Size([1, 14, 3, 480, 480])
+Converted action_str into: ['forward 0.2m', 'turn_left 22.5°', 'forward 0.2m', 'turn_right 22.5°']
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:00<00:01,  2.09it/s] 50%|█████     | 2/4 [00:00<00:00,  2.66it/s] 75%|███████▌  | 3/4 [00:01<00:00,  2.92it/s]100%|██████████| 4/4 [00:01<00:00,  3.02it/s]100%|██████████| 4/4 [00:01<00:00,  2.86it/s]
+[causalforcing] 1 rollout(s), 17 pixel frames each, 2.09s total (2.09s/rollout)
+video_tensors shape: torch.Size([1, 14, 3, 480, 480])
+Converted action_str into: ['forward 0.2m', 'turn_left 22.5°', 'forward 0.2m', 'turn_right 22.5°']
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:00<00:01,  2.11it/s] 50%|█████     | 2/4 [00:00<00:00,  2.65it/s] 75%|███████▌  | 3/4 [00:01<00:00,  2.91it/s]100%|██████████| 4/4 [00:01<00:00,  3.05it/s]100%|██████████| 4/4 [00:01<00:00,  2.88it/s]
+[causalforcing] 1 rollout(s), 17 pixel frames each, 2.08s total (2.08s/rollout)
+video_tensors shape: torch.Size([1, 14, 3, 480, 480])
+Converted action_str into: ['forward 0.2m', 'turn_left 22.5°', 'forward 0.2m', 'turn_right 22.5°']
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:00<00:01,  2.09it/s] 50%|█████     | 2/4 [00:00<00:00,  2.66it/s] 75%|███████▌  | 3/4 [00:01<00:00,  2.93it/s]100%|██████████| 4/4 [00:01<00:00,  3.07it/s]100%|██████████| 4/4 [00:01<00:00,  2.89it/s]
+[causalforcing] 1 rollout(s), 17 pixel frames each, 2.12s total (2.12s/rollout)
+video_tensors shape: torch.Size([1, 14, 3, 480, 480])
+[compare] 2-step (first-chunk 4): per-rollout (gpu) warm mean=2.094s  all=['3.633', '2.085', '2.076', '2.121']  pred=(1, 14, 3, 480, 480)
+Converted action_str into: ['forward 0.2m', 'turn_left 22.5°', 'forward 0.2m', 'turn_right 22.5°']
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:00<00:01,  2.12it/s] 50%|█████     | 2/4 [00:00<00:00,  2.08it/s] 75%|███████▌  | 3/4 [00:01<00:00,  2.07it/s]100%|██████████| 4/4 [00:01<00:00,  2.07it/s]100%|██████████| 4/4 [00:01<00:00,  2.08it/s]
+[causalforcing] 1 rollout(s), 17 pixel frames each, 2.62s total (2.62s/rollout)
+video_tensors shape: torch.Size([1, 14, 3, 480, 480])
+Converted action_str into: ['forward 0.2m', 'turn_left 22.5°', 'forward 0.2m', 'turn_right 22.5°']
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:00<00:01,  2.11it/s] 50%|█████     | 2/4 [00:00<00:00,  2.09it/s] 75%|███████▌  | 3/4 [00:01<00:00,  2.08it/s]100%|██████████| 4/4 [00:01<00:00,  2.08it/s]100%|██████████| 4/4 [00:01<00:00,  2.08it/s]
+[causalforcing] 1 rollout(s), 17 pixel frames each, 2.64s total (2.64s/rollout)
+video_tensors shape: torch.Size([1, 14, 3, 480, 480])
+Converted action_str into: ['forward 0.2m', 'turn_left 22.5°', 'forward 0.2m', 'turn_right 22.5°']
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:00<00:01,  2.09it/s] 50%|█████     | 2/4 [00:00<00:00,  2.08it/s] 75%|███████▌  | 3/4 [00:01<00:00,  2.09it/s]100%|██████████| 4/4 [00:01<00:00,  2.06it/s]100%|██████████| 4/4 [00:01<00:00,  2.07it/s]
+[causalforcing] 1 rollout(s), 17 pixel frames each, 2.61s total (2.61s/rollout)
+video_tensors shape: torch.Size([1, 14, 3, 480, 480])
+Converted action_str into: ['forward 0.2m', 'turn_left 22.5°', 'forward 0.2m', 'turn_right 22.5°']
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:00<00:01,  2.05it/s] 50%|█████     | 2/4 [00:00<00:00,  2.07it/s] 75%|███████▌  | 3/4 [00:01<00:00,  2.07it/s]100%|██████████| 4/4 [00:01<00:00,  2.06it/s]100%|██████████| 4/4 [00:01<00:00,  2.06it/s]
+[causalforcing] 1 rollout(s), 17 pixel frames each, 2.62s total (2.62s/rollout)
+video_tensors shape: torch.Size([1, 14, 3, 480, 480])
+[compare] 4-step uniform: per-rollout (gpu) warm mean=2.623s  all=['2.615', '2.639', '2.611', '2.620']  pred=(1, 14, 3, 480, 480)
+Converted action_str into: ['forward 0.2m', 'turn_left 22.5°', 'forward 0.2m', 'turn_right 22.5°']
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:00<00:02,  1.19it/s] 50%|█████     | 2/4 [00:01<00:01,  1.20it/s] 75%|███████▌  | 3/4 [00:02<00:00,  1.20it/s]100%|██████████| 4/4 [00:03<00:00,  1.20it/s]100%|██████████| 4/4 [00:03<00:00,  1.20it/s]
+[causalforcing] 1 rollout(s), 17 pixel frames each, 4.01s total (4.01s/rollout)
+video_tensors shape: torch.Size([1, 14, 3, 480, 480])
+Converted action_str into: ['forward 0.2m', 'turn_left 22.5°', 'forward 0.2m', 'turn_right 22.5°']
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:00<00:02,  1.20it/s] 50%|█████     | 2/4 [00:01<00:01,  1.19it/s] 75%|███████▌  | 3/4 [00:02<00:00,  1.19it/s]100%|██████████| 4/4 [00:03<00:00,  1.18it/s]100%|██████████| 4/4 [00:03<00:00,  1.19it/s]
+[causalforcing] 1 rollout(s), 17 pixel frames each, 4.05s total (4.05s/rollout)
+video_tensors shape: torch.Size([1, 14, 3, 480, 480])
+Converted action_str into: ['forward 0.2m', 'turn_left 22.5°', 'forward 0.2m', 'turn_right 22.5°']
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:00<00:02,  1.19it/s] 50%|█████     | 2/4 [00:01<00:01,  1.19it/s] 75%|███████▌  | 3/4 [00:02<00:00,  1.18it/s]100%|██████████| 4/4 [00:03<00:00,  1.17it/s]100%|██████████| 4/4 [00:03<00:00,  1.18it/s]
+[causalforcing] 1 rollout(s), 17 pixel frames each, 4.08s total (4.08s/rollout)
+video_tensors shape: torch.Size([1, 14, 3, 480, 480])
+Converted action_str into: ['forward 0.2m', 'turn_left 22.5°', 'forward 0.2m', 'turn_right 22.5°']
+  0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:00<00:02,  1.20it/s] 50%|█████     | 2/4 [00:01<00:01,  1.20it/s] 75%|███████▌  | 3/4 [00:02<00:00,  1.19it/s]100%|██████████| 4/4 [00:03<00:00,  1.20it/s]100%|██████████| 4/4 [00:03<00:00,  1.20it/s]
+[causalforcing] 1 rollout(s), 17 pixel frames each, 4.04s total (4.04s/rollout)
+video_tensors shape: torch.Size([1, 14, 3, 480, 480])
+[compare] 8-step uniform: per-rollout (gpu) warm mean=4.058s  all=['4.011', '4.051', '4.084', '4.038']  pred=(1, 14, 3, 480, 480)
+
+[compare] SPEEDUP 2-step vs 4-step: 1.25x | 2-step vs 8-step: 1.94x
+=== COMPARE DONE ===
+EXIT CODE: 0

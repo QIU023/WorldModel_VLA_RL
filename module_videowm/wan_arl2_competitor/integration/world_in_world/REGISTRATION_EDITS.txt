@@ -1,0 +1,26 @@
+World-in-World registration edits for `causalforcing` (clone root: /home/wm-vla-rl/_ext/world-in-world)
+=======================================================================================================
+
+1) downstream/vlm.py  (WORLD_MODEL_TYPES["text"], ~line 28)
+   add "causalforcing" to the "text" list:
+     "text": [..., "gen4tur", "causalforcing"],
+
+2) downstream/utils/worker_manager.py  (line 752, worker_type launch list)
+   add "causalforcing" to the list passed to get_worldmodel_workers_cmd:
+     elif args.worker_type in [..., "gen4tur", "causalforcing"] + ["FTcosmos", ...]:
+
+3) downstream/utils/workers_cfg.py  (COMMON_ARGS["Host3"], this box resolves to Host3)
+   add the "causalforcing_worker" entry:
+     "causalforcing_worker": [
+         "/home/venv/cosmos_predict2/bin/python",
+         "downstream/api_models/causalforcing_model.py",
+         "--config_path=/home/wm-vla-rl/_ext/Causal-Forcing/configs/causal_forcing_dmd_framewise_2step.yaml",
+         "--checkpoint_path=/home/causal_forcing_ckpt/framewise/causal_forcing.pt",
+         "--surgery_ckpt=/home/wm-vla-rl/_ext/wan_lin_out/jepa_l025_T8/wanlin_s2_step6000.safetensors",
+         "--surgery_ratio=0.75", "--surgery_groups=4", "--surgery_lora_r=8",
+         "--num_latent_frames=5", "--num_output_frames=14", "--width=480", "--height=480",
+     ],
+
+4) downstream/api_models/causalforcing_model.py  (the wrapper; copied here as causalforcing_model.py)
+
+Env: in /home/venv/cosmos_predict2 -> pip install jaxtyping json_repair (imageio already present); torch untouched.
