@@ -1,6 +1,6 @@
 WorldVLA conthead KDA(75%)+AttnRes open-loop eval (CONT_NCHUNKS=25, N_TRIALS=50, 2-GPU sharded) — PARTIAL
-updated: 2026-06-13T07:27:27Z  (rendering-bound, full run = 250 ep/shard = hours)
-PARTIAL: 0 / 29 success = 0.0%   (vs teacher 59% / discrete-KDA 0%)
-  half1(tasks0-4): 0/12
-  half2(tasks5-9): 0/17
+updated: 2026-06-13T07:33:29Z  (rendering-bound, full run = 250 ep/shard = hours)
+PARTIAL: 0 / 37 success = 0.0%   (vs teacher 59% / discrete-KDA 0%)
+  half1(tasks0-4): 0/16
+  half2(tasks5-9): 0/21
 NOTE: small-sample partial; statistically inconclusive until full run. Resumable via eval_conthead_openloop_sharded.sh (commit d9a988c).
