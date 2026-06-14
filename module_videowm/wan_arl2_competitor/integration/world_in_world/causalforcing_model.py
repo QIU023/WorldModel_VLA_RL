@@ -95,6 +95,29 @@ LATENT_W = GEN_WIDTH // 8    # 104
 LATENT_C = 16
 
 
+def _add_nav_lora(model, linear_idx, r=8, alpha=16, include_ffn=True):
+    """Stack a SECOND (nav-post-train) LoRA on the already main-LoRA-wrapped Q/K/V/O(+FFN) of each
+    linearized block. BYTE-FOR-BYTE equivalent to nav_posttrain.add_nav_lora so the saved nav delta
+    keys match (unexp=0). Returns the list of new nav params (unused at eval, kept for parity)."""
+    LoRALinear = kda_surgery.LoRALinear
+    get_self_attn = kda_surgery.get_self_attn
+    new_params = []
+    for i in linear_idx:
+        attn = get_self_attn(model.blocks[i])
+        for name in ("q", "k", "v", "o"):
+            lin = LoRALinear(getattr(attn, name), r, alpha)
+            setattr(attn, name, lin)
+            new_params += [lin.lora_A.weight, lin.lora_B.weight]
+        if include_ffn:
+            blk = model.blocks[i]
+            blk = blk.inner if hasattr(blk, "inner") else blk
+            for fi in (0, 2):
+                lin = LoRALinear(blk.ffn[fi], r, alpha)
+                blk.ffn[fi] = lin
+                new_params += [lin.lora_A.weight, lin.lora_B.weight]
+    return new_params
+
+
 class CausalForcingModel(DiffuserModel):
     """OUR linearized Causal-Forcing student as a World-in-World text/I2V world model."""
 
@@ -150,6 +173,16 @@ class CausalForcingModel(DiffuserModel):
                   f"(unexpected={len(unexp)}, missing-base={len(miss)}); "
                   f"ratio={a.surgery_ratio} groups={a.surgery_groups} lora_r={a.surgery_lora_r}",
                   flush=True)
+
+            # 3) OPTIONAL nav-post-train LoRA, stacked on the main-LoRA-wrapped Q/K/V/O(+FFN).
+            #    Same surgery order/structure as nav_posttrain.add_nav_lora so the delta loads cleanly.
+            if a.nav_lora_ckpt:
+                _add_nav_lora(m, lin, r=a.nav_lora_r)
+                nav_delta = load_file(a.nav_lora_ckpt)
+                nmiss, nunexp = m.load_state_dict(nav_delta, strict=False)
+                print(f"[causalforcing] nav LoRA: {len(nav_delta)} trained tensors -> generator "
+                      f"(unexpected={len(nunexp)}); nav_lora_r={a.nav_lora_r} "
+                      f"from {a.nav_lora_ckpt}", flush=True)
 
         pipe = pipe.to(dtype=torch.bfloat16)
         pipe.text_encoder.to(device)
@@ -216,6 +249,11 @@ def build_parser():
     p.add_argument("--surgery_ratio", type=float, default=0.75)
     p.add_argument("--surgery_groups", type=int, default=4)
     p.add_argument("--surgery_lora_r", type=int, default=8)
+    # OPTIONAL nav-post-train LoRA (FTtext): a 2nd LoRA stacked on the linearized blocks. Absent => the
+    # model is byte-identical to the prior eval student (SR 0.10 baseline).
+    p.add_argument("--nav_lora_ckpt", type=str, default=None,
+                   help="path to nav-post-train LoRA safetensors; if set, stacked on the main LoRA")
+    p.add_argument("--nav_lora_r", type=int, default=8, help="rank of the nav LoRA (must match training)")
     p.add_argument("--use_ema", action="store_true")
     # I2V / output
     p.add_argument("--num_latent_frames", type=int, default=5,
