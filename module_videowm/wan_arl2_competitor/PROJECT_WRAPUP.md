@@ -108,3 +108,27 @@
 - steps 跟数据规模走(epochs),不抄绝对步数;bash 保留变量名(GROUPS)不要用。
 - loss floor ≠ 质量:velocity-MSE 与 VBench 弱耦合,verdict 永远用端到端 eval。
 - 不可复现的他报数(ARL² 86.71)只能当软参照;verdict = 自己可复现的 teacher-vs-student。
+
+## 6. WoVR 下游扩展(2026-06-13→14 overnight)—— 管线全通,下游成功未达成(诚实)
+
+**转向**:WAM 直接线性化失败后,改用 linearized-WM 做下游(WoVR 流派:World-in-World ICLR'26 Oral / VLA-RFT / RLVR-World)。
+
+**已落地(全 commit)**:
+- World-in-World(ICLR'26 Oral)整合:**我们的线性化 Causal-Forcing WM 端到端跑进闭环 worker**(smoke PASS,2-step 2.09s/rollout)。Habitat-sim + HM3D(非门控)+ IGNav 就绪。
+- **IGNav 闭环数(诚实负)**:
+  | 配置 | SR | 备注 |
+  |---|---|---|
+  | 启发式策略, no-LoRA | 0.10 (1/10) | 策略地板(噪声) |
+  | 启发式策略, nav-LoRA | 0.00 | 噪声 |
+  | **真 VLM 策略 + held-out, no-LoRA** | **0.00 (10ep)** | 真策略也救不起 |
+  | 真 VLM 策略 + held-out, nav-LoRA | 0.0(早期) | 同 |
+- **nav 后训**:smoke 3/3 过,2000 步 DDP,WM 离线 motion MSE −26%,但**不传导到闭环成功**。
+- VLA-RFT:代码骨架 + de-risk(RT1 base 公开),按用户 B 不做归档。
+
+**结论**:线性化 WM 在闭环下游**机制上全通**,但**下游成功 ≈ 0**。根因不是单一线性化:
+1. **可控性 / 基模型**:Wan2.1-1.3B 是通用 T2V,零样本跟随离散导航文本("turn left 22.5°")很弱;World-in-World 自己的发现 = **画质 ≠ 任务成功,可控性(action-obs 后训)>> 升级视频生成器**。
+2. **线性化保真**:2-step 线性化 WM 更糊,对 VLM 规划是额外不利(幅度未单独隔离)。
+
+→ **关键判断:换"原始二次方 WM"不会解决这个问题**(见下方问答);真正的修法 = **足量 action-observation 可控性后训**(我们的 nav-LoRA 太小:612 clips/r8)。一旦 WM 可控,**线性化的效率(2-step ~2s vs 教师 30-step ~15×)才成为卖点 = 更便宜的可控模拟器**。
+
+**未做(下次)**:① 实测二次方教师在 IGNav 隔离"线性化 vs 可控性"贡献;② 足量 FTtext 可控性后训(train/val 分离);③ 加 N。
