@@ -131,4 +131,8 @@
 
 → **关键判断:换"原始二次方 WM"不会解决这个问题**(见下方问答);真正的修法 = **足量 action-observation 可控性后训**(我们的 nav-LoRA 太小:612 clips/r8)。一旦 WM 可控,**线性化的效率(2-step ~2s vs 教师 30-step ~15×)才成为卖点 = 更便宜的可控模拟器**。
 
-**未做(下次)**:① 实测二次方教师在 IGNav 隔离"线性化 vs 可控性"贡献;② 足量 FTtext 可控性后训(train/val 分离);③ 加 N。
+**未做(下次)—— headline 干净实验 = FTcausalforcing vs FTwan21 on held-out IGNav:**
+- 核心对照表:`wan21`(零样本二次方)/`causalforcing`(零样本,我们)都≈0(已部分验证);**`FTwan21`(后训二次方,WiW 已公开可下)vs `FTcausalforcing`(后训,我们)** = 若匹配成功率则线性化靠效率赢(2-step ~2s vs 30-step ~15×)。
+- WiW 后训配方(docs/04_post_training.md):`scripts/data_collect.sh`(habitat032 env,`--trajs_num_per_scene 1`,~HM3D 1k 场景=~1k trajs)采 (obs,action,future) → 全量 FT 视频生成器(他们用 4×H100)。我们玩具版只有 612 clip/r8。
+- **省时杠杆**:① FTwan21 大概率从 `hf:zonszer/WIW_ckpts` 直接下(免训二次方,省 1-2 天);② WiW 有小型 nav 后训数据集可下(数据从半天降到几小时);③ eval 慢瓶颈是 VLM ~3min/集(先 N=30 拿信号再扩 144)。
+- **时间估**:A(最小可行信号,2×H200)≈ **1.5-2 天**(下/采小数据 + LoRA-r32 FT 我们的 WM + 下 FTwan21 + IGNav N=30 held-out);B(完整可发表)≈ **1 周**(全量采数据 + 全量 FT + N=144 + TTS 扫)。先 A 出正信号再上 B。
