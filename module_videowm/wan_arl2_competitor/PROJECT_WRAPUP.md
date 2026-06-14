@@ -120,8 +120,8 @@
   |---|---|---|
   | 启发式策略, no-LoRA | 0.10 (1/10) | 策略地板(噪声) |
   | 启发式策略, nav-LoRA | 0.00 | 噪声 |
-  | **真 VLM 策略 + held-out, no-LoRA** | **0.00 (10ep)** | 真策略也救不起 |
-  | 真 VLM 策略 + held-out, nav-LoRA | 0.0(早期) | 同 |
+  | **真 VLM 策略(Qwen2.5-VL-7B)+ held-out, no-LoRA** | **0.00 (0/12)** | 真策略也救不起 |
+  | **真 VLM 策略 + held-out, nav-LoRA s2000** | **0.00 (0/11)** | 终距 2.46→2.11m(7/11 更近,best 0.81m)= 后训在动但不跨 0.5m 阈 |
 - **nav 后训**:smoke 3/3 过,2000 步 DDP,WM 离线 motion MSE −26%,但**不传导到闭环成功**。
 - VLA-RFT:代码骨架 + de-risk(RT1 base 公开),按用户 B 不做归档。
 
